@@ -1,0 +1,22 @@
+diff --git a/system/gd/hci/hci_metrics_logging.cc b/system/gd/hci/hci_metrics_logging.cc
+index 15f2a0e5096495fc366eeca258a23cf67c328cc8..8b8c6b35fbe82e21d376c83984f0c7fc512991f6 100644
+--- a/system/gd/hci/hci_metrics_logging.cc
++++ b/system/gd/hci/hci_metrics_logging.cc
+@@ -35,7 +35,7 @@ void log_hci_event(std::unique_ptr<CommandView>& command_view, EventView event_v
+     case EventCode::COMMAND_COMPLETE: {
+       CommandCompleteView complete_view = CommandCompleteView::Create(event_view);
+       log::assert_that(complete_view.IsValid(), "assert failed: complete_view.IsValid()");
+-      if (complete_view.GetCommandOpCode() == OpCode::NONE) {
++      if (complete_view.GetCommandOpCode() == OpCode::NONE || command_view == nullptr) {
+         return;
+       }
+       log::assert_that(command_view->IsValid(), "assert failed: command_view->IsValid()");
+@@ -46,7 +46,7 @@ void log_hci_event(std::unique_ptr<CommandView>& command_view, EventView event_v
+     case EventCode::COMMAND_STATUS: {
+       CommandStatusView response_view = CommandStatusView::Create(event_view);
+       log::assert_that(response_view.IsValid(), "assert failed: response_view.IsValid()");
+-      if (response_view.GetCommandOpCode() == OpCode::NONE) {
++      if (response_view.GetCommandOpCode() == OpCode::NONE || command_view == nullptr) {
+         return;
+       }
+       log::assert_that(command_view->IsValid(), "assert failed: command_view->IsValid()");

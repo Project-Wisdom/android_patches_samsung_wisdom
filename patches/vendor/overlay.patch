@@ -1,0 +1,20 @@
+diff --git a/overlays.mk b/overlays.mk
+index a1905a56e85cc20df2788a181cac0b847b7e2c5e..a50e70c3e710e34d43516d7977c4ce2921934e5c 100755
+--- a/overlays.mk
++++ b/overlays.mk
+@@ -14,6 +14,7 @@
+ # limitations under the License.
+ 
+ # Fonts
++ifeq ($(TARGET_INCLUDE_CUSTOM_FONTS),true)
+ $(call inherit-product-if-exists, external/google-fonts/arbutus-slab/fonts.mk)
+ $(call inherit-product-if-exists, external/google-fonts/arvo/fonts.mk)
+ $(call inherit-product-if-exists, external/google-fonts/lato/fonts.mk)
+@@ -59,6 +60,7 @@ PRODUCT_PACKAGES += \
+     FontStoropiaSourceOverlay \
+     FontRobotoFlexRegularOverlay \
+     FontGoogleSansFlexRegularOverlay
++endif
+ 
+ # Icon shapes
+ PRODUCT_PACKAGES += \

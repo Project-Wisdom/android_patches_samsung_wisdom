@@ -1,0 +1,13 @@
+diff --git a/aidl/vibrator/Android.bp b/aidl/vibrator/Android.bp
+index 7ef90392dd8c9959dfad4a6d5ccb7a998966a910..8dd0c5a2f9feaf31c7ba24fabec53f9c4a36bc40 100644
+--- a/aidl/vibrator/Android.bp
++++ b/aidl/vibrator/Android.bp
+@@ -9,7 +9,7 @@ cc_binary {
+     init_rc: ["android.hardware.vibrator-service.samsung.rc"],
+     vintf_fragments: ["android.hardware.vibrator-service.samsung.xml"],
+     cppflags: select(soong_config_variable("samsungVibratorVars", "duration_amplitude"), {
+-        true: ["-DVIBRATOR_SUPPORTS_DURATION_AMPLITUDE_CONTROL"],
++        "true": ["-DVIBRATOR_SUPPORTS_DURATION_AMPLITUDE_CONTROL"],
+         default: [],
+     }),
+     srcs: [

@@ -1,0 +1,135 @@
+diff --git a/openmax/component/video/enc/Exynos_OMX_Venc.c b/openmax/component/video/enc/Exynos_OMX_Venc.c
+index f9444c37314e5d32babb79087714f816a0c5095c..01050943af56cc29c2171de6a8a5aa15aed61b9f 100644
+--- a/openmax/component/video/enc/Exynos_OMX_Venc.c
++++ b/openmax/component/video/enc/Exynos_OMX_Venc.c
+@@ -1021,7 +1021,13 @@ OMX_BOOL Exynos_Preprocessor_InputData(OMX_COMPONENTTYPE *pOMXComponent, EXYNOS_
+ 
+     if (inputUseBuffer->dataValid == OMX_TRUE) {
+         if (exynosInputPort->bufferProcessType & BUFFER_SHARE) {
+-            Exynos_Shared_BufferToData(exynosInputPort, inputUseBuffer, srcInputData);
++            OMX_ERRORTYPE shareRet = Exynos_Shared_BufferToData(exynosInputPort, inputUseBuffer, srcInputData);
++            if (shareRet != OMX_ErrorNone) {
++                Exynos_OSAL_Log(EXYNOS_LOG_ERROR, "[%p][%s] Failed to Exynos_Shared_BufferToData: 0x%x",
++                                pExynosComponent, __FUNCTION__, shareRet);
++                ret = OMX_FALSE;
++                goto EXIT;
++            }
+ 
+             if (exynosInputPort->eMetaDataType != METADATA_TYPE_DISABLED) {
+                 OMX_ERRORTYPE                err = OMX_ErrorNone;
+diff --git a/openmax/osal/Exynos_OSAL_Android.cpp b/openmax/osal/Exynos_OSAL_Android.cpp
+index f881b9bea16a37de4b6438344f37af76854cfe83..25e144c5150d433dc6921428aacfe0c0714e1ff0 100644
+--- a/openmax/osal/Exynos_OSAL_Android.cpp
++++ b/openmax/osal/Exynos_OSAL_Android.cpp
+@@ -69,12 +69,13 @@ using namespace android;
+ using namespace ::vendor::graphics;
+ using namespace ::vendor::graphics::ion;
+ 
+-#define OMX_GRALLOC_USAGE_HW_VIDEO (ExynosGraphicBufferUsage::VIDEO_PRIVATE_DATA)
+ #define OMX_GRALLOC_USAGE_HW_VIDEO_DEC ((uint64_t)BufferUsage::VIDEO_DECODER)     // decoder(prod)
+ #define OMX_GRALLOC_USAGE_HW_VIDEO_ENC ((uint64_t)BufferUsage::VIDEO_ENCODER)     // encoder(cons)
+ #define OMX_GRALLOC_USAGE_DISP ((uint64_t)BufferUsage::GPU_TEXTURE)               // decoder(prod)
+ #define OMX_GRALLOC_USAGE_UVA ((uint64_t)(BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN))
+-#define OMX_GRALLOC_USAGE_LOCK (OMX_GRALLOC_USAGE_UVA | OMX_GRALLOC_USAGE_HW_VIDEO)
++// IMapper lock accepts CPU usage only. Exynos video metadata is read from the
++// handle separately in lockBuffer(), so VIDEO_PRIVATE_DATA must not be passed here.
++#define OMX_GRALLOC_USAGE_LOCK (OMX_GRALLOC_USAGE_UVA)
+ #define OMX_GRALLOC_USAGE_PROTECTED ((uint64_t)BufferUsage::PROTECTED)
+ 
+ #ifdef __cplusplus
+@@ -1055,7 +1056,12 @@ static OMX_ERRORTYPE lockBuffer(
+         auto err = mapper.lock64(bufferHandle, OMX_GRALLOC_USAGE_LOCK, bounds, &vaddr);
+ 
+         if (err != ::android::NO_ERROR) {
+-            Exynos_OSAL_Log(EXYNOS_LOG_ERROR, "[%s] Failed to mapper.lock()", __FUNCTION__);
++            Exynos_OSAL_Log(EXYNOS_LOG_ERROR,
++                            "[%s] mapper.lock64 failed: status=%d/0x%x format=0x%x gralloc=0x%x size=%ux%u",
++                            __FUNCTION__, static_cast<int>(err), static_cast<unsigned int>(err),
++                            static_cast<unsigned int>(format),
++                            static_cast<unsigned int>(graphicBuffer.format),
++                            static_cast<unsigned int>(width), static_cast<unsigned int>(height));
+             ret = OMX_ErrorUndefined;
+             goto EXIT;
+         }
+@@ -1072,14 +1078,35 @@ static OMX_ERRORTYPE lockBuffer(
+ 
+         auto err = mapper.lockYCbCr64(bufferHandle, OMX_GRALLOC_USAGE_LOCK, bounds, &outLayout);
+ 
+-        if (err != ::android::NO_ERROR) {
+-            Exynos_OSAL_Log(EXYNOS_LOG_ERROR, "[%s] Failed to mapper.lock()", __FUNCTION__);
+-            ret = OMX_ErrorUndefined;
+-            goto EXIT;
+-        }
++        if (err == ::android::NO_ERROR) {
++            pBufferInfo->addr[0] = outLayout.y;
++            pBufferInfo->addr[1] = outLayout.cr;
++        } else {
++            /* Multi-planar formats (such as HAL_PIXEL_FORMAT_EXYNOS_YCrCb_420_SP_M = 0x11D)
++             * cannot be represented in android_ycbcr by legacy Mali gralloc and will fail lockYCbCr.
++             * Fall back to mapper.lock64 to lock the buffer with gralloc and obtain the base VA.
++             */
++            void *vaddr = NULL;
++            err = mapper.lock64(bufferHandle, OMX_GRALLOC_USAGE_LOCK, bounds, &vaddr);
++            if (err != ::android::NO_ERROR) {
++                Exynos_OSAL_Log(EXYNOS_LOG_ERROR,
++                                "[%s] mapper.lock64 fallback failed: status=%d/0x%x format=0x%x gralloc=0x%x size=%ux%u",
++                                __FUNCTION__, static_cast<int>(err), static_cast<unsigned int>(err),
++                                static_cast<unsigned int>(format),
++                                static_cast<unsigned int>(graphicBuffer.format),
++                                static_cast<unsigned int>(width), static_cast<unsigned int>(height));
++                ret = OMX_ErrorUndefined;
++                goto EXIT;
++            }
++
++            Exynos_OSAL_Log(EXYNOS_LOG_TRACE,
++                            "[%s] mapper.lock64 fallback succeeded for format=0x%x gralloc=0x%x vaddr=%p",
++                            __FUNCTION__, static_cast<unsigned int>(format),
++                            static_cast<unsigned int>(graphicBuffer.format), vaddr);
+ 
+-        pBufferInfo->addr[0] = outLayout.y;
+-        pBufferInfo->addr[1] = outLayout.cr;
++            pBufferInfo->addr[0] = vaddr;
++            pBufferInfo->addr[1] = NULL;
++        }
+     }
+         break;
+     default:
+@@ -1089,14 +1116,31 @@ static OMX_ERRORTYPE lockBuffer(
+ 
+         auto err = mapper.lockYCbCr64(bufferHandle, OMX_GRALLOC_USAGE_LOCK, bounds, &outLayout);
+ 
+-        if (err != ::android::NO_ERROR) {
+-            Exynos_OSAL_Log(EXYNOS_LOG_ERROR, "[%s] Failed to mapper.lock()", __FUNCTION__);
+-            ret = OMX_ErrorUndefined;
+-            goto EXIT;
+-        }
++        if (err == ::android::NO_ERROR) {
++            pBufferInfo->addr[0] = outLayout.y;
++            pBufferInfo->addr[1] = outLayout.cb;
++        } else {
++            void *vaddr = NULL;
++            err = mapper.lock64(bufferHandle, OMX_GRALLOC_USAGE_LOCK, bounds, &vaddr);
++            if (err != ::android::NO_ERROR) {
++                Exynos_OSAL_Log(EXYNOS_LOG_ERROR,
++                                "[%s] mapper.lock64 fallback failed: status=%d/0x%x format=0x%x gralloc=0x%x size=%ux%u",
++                                __FUNCTION__, static_cast<int>(err), static_cast<unsigned int>(err),
++                                static_cast<unsigned int>(format),
++                                static_cast<unsigned int>(graphicBuffer.format),
++                                static_cast<unsigned int>(width), static_cast<unsigned int>(height));
++                ret = OMX_ErrorUndefined;
++                goto EXIT;
++            }
++
++            Exynos_OSAL_Log(EXYNOS_LOG_TRACE,
++                            "[%s] mapper.lock64 fallback succeeded for format=0x%x gralloc=0x%x vaddr=%p",
++                            __FUNCTION__, static_cast<unsigned int>(format),
++                            static_cast<unsigned int>(graphicBuffer.format), vaddr);
+ 
+-        pBufferInfo->addr[0] = outLayout.y;
+-        pBufferInfo->addr[1] = outLayout.cb;
++            pBufferInfo->addr[0] = vaddr;
++            pBufferInfo->addr[1] = NULL;
++        }
+     }
+         break;
+     }

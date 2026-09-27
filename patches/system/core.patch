@@ -1,0 +1,324 @@
+diff --git a/init/Android.bp b/init/Android.bp
+index 5a68ddb2d23b175ef6323c950826ae69c62334cd..0e8c0ad2437363102168139ce7e9c2559a699bbc 100644
+--- a/init/Android.bp
++++ b/init/Android.bp
+@@ -209,6 +209,7 @@ libinit_cc_defaults {
+         "libext4_utils",
+         "libfs_mgr",
+         "libgsi",
++        "libkeyutils",
+         "liblog",
+         "liblogwrap",
+         "liblp",
+diff --git a/init/builtins.cpp b/init/builtins.cpp
+index 2e4a3b4dc77c57b9edbc9ed5350aa4f546af409b..c8691693b138428323264cd9c3df45cf4a428449 100644
+--- a/init/builtins.cpp
++++ b/init/builtins.cpp
+@@ -595,6 +595,10 @@ static Result<void> queue_fs_event(int code) {
+                code == FS_MGR_MNTALL_DEV_IS_METADATA_ENCRYPTED ||
+                code == FS_MGR_MNTALL_DEV_NEEDS_METADATA_ENCRYPTION) {
+         SetProperty("ro.crypto.state", "encrypted");
++        SetProperty("ro.crypto.type", "file");
++        if (!FscryptInstallKeyring()) {
++            return Error() << "FscryptInstallKeyring() failed";
++        }
+ 
+         // Although encrypted, vold has already set the device up, so we do not need to
+         // do anything different from the nonencrypted case.
+@@ -641,6 +645,21 @@ static Result<void> do_mount_all(const BuiltinArguments& args) {
+         }
+     }
+ 
++    // Legacy 4.4 kernels expose fscrypt keys through the process session
++    // keyring instead of FS_IOC_ADD_ENCRYPTION_KEY.  vold is started during
++    // early-fs, before the late mount_all result is processed, so install the
++    // shared keyring before mounting any fstab that declares file encryption.
++    bool has_file_encryption = false;
++    for (const auto& entry : fstab) {
++        if (entry.fs_mgr_flags.file_encryption) {
++            has_file_encryption = true;
++            break;
++        }
++    }
++    if (has_file_encryption && !FscryptInstallKeyring()) {
++        return Error() << "FscryptInstallKeyring() failed before mount_all";
++    }
++
+     auto mount_fstab_result = fs_mgr_mount_all(&fstab, mount_all->mode);
+     SetProperty(prop_name, std::to_string(t.duration().count()));
+ 
+diff --git a/init/fscrypt_init_extensions.cpp b/init/fscrypt_init_extensions.cpp
+index 6a561e54cc694cc7048d960969c1b0a976d804e8..1bcf2fbfc38d0623d9ec523a514257074cd55cc8 100644
+--- a/init/fscrypt_init_extensions.cpp
++++ b/init/fscrypt_init_extensions.cpp
+@@ -34,12 +34,41 @@
+ #include <cutils/properties.h>
+ #include <cutils/sockets.h>
+ #include <fscrypt/fscrypt.h>
++#include <keyutils.h>
+ #include <logwrap/logwrap.h>
++#include <sys/syscall.h>
+ 
+ #define TAG "fscrypt"
+ 
+ using namespace android::fscrypt;
+ 
++bool FscryptInstallKeyring() {
++    if (keyctl_search(KEY_SPEC_SESSION_KEYRING, "keyring", "fscrypt", 0) != -1) {
++        LOG(INFO) << "fscrypt keyring is already created";
++        return true;
++    }
++
++    if (syscall(__NR_keyctl, KEYCTL_JOIN_SESSION_KEYRING, nullptr) == -1) {
++        PLOG(ERROR) << "Failed to join session keyring";
++        return false;
++    }
++
++    key_serial_t device_keyring =
++            add_key("keyring", "fscrypt", 0, 0, KEY_SPEC_SESSION_KEYRING);
++    if (device_keyring == -1) {
++        PLOG(ERROR) << "Failed to create fscrypt keyring";
++        return false;
++    }
++
++    if (syscall(__NR_keyctl, KEYCTL_SETPERM, device_keyring, 0x3f3f3f3f) == -1) {
++        PLOG(ERROR) << "Failed to set permissions on fscrypt keyring";
++    }
++
++    LOG(INFO) << "fscrypt keyring created with id " << device_keyring << " in process "
++              << getpid();
++    return true;
++}
++
+ // TODO(b/139378601): use a single central implementation of this.
+ static void delete_dir_contents(const std::string& dir) {
+     char* const paths[2] = {const_cast<char*>(dir.c_str()), nullptr};
+diff --git a/init/fscrypt_init_extensions.h b/init/fscrypt_init_extensions.h
+index 5e0269a3b096e167d7ecc76c15afdd221a4560f9..d357bb2fd82bdd86c958bcdb460f1508111d33a1 100644
+--- a/init/fscrypt_init_extensions.h
++++ b/init/fscrypt_init_extensions.h
+@@ -25,5 +25,6 @@ enum class FscryptAction {
+     kDeleteIfNecessary,
+ };
+ 
++bool FscryptInstallKeyring();
+ bool FscryptSetDirectoryPolicy(const std::string& ref_basename, FscryptAction action,
+                                const std::string& dir);
+diff --git a/init/init.cpp b/init/init.cpp
+index aec2688fc8387d1166be7e6a6e24e4a536337c03..f3a70cd8151be623fc708c09488c24b0d4c0c26d 100644
+--- a/init/init.cpp
++++ b/init/init.cpp
+@@ -72,6 +72,7 @@
+ #include "epoll.h"
+ #include "first_stage_init.h"
+ #include "first_stage_mount.h"
++#include "fscrypt_init_extensions.h"
+ #include "import_parser.h"
+ #include "keychords.h"
+ #include "lmkd_service.h"
+@@ -1140,6 +1141,15 @@ int SecondStageMain(int argc, char** argv) {
+     SelabelInitialize();
+     SelinuxRestoreContext();
+ 
++    // SM-P205 boots a legacy 4.4 kernel whose ext4 fscrypt implementation
++    // consumes keys from the inherited process session keyring. Create the
++    // shared ring before starting property service threads or forking subcontexts
++    // (vendor_init), ensuring that all threads and descendant processes inherit
++    // PID 1's keyring anchor.
++    if (!FscryptInstallKeyring()) {
++        LOG(ERROR) << "Failed to initialize legacy fscrypt keyring early in second stage";
++    }
++
+     Epoll epoll;
+     if (auto result = epoll.Open(); !result.ok()) {
+         PLOG(FATAL) << result.error();
+diff --git a/init/property_service.cpp b/init/property_service.cpp
+index 40eed44906756d1d51d29f8ce6bc40b91b3305a3..1fafe226f25646a7f02138d86cc109dc86bc6641 100644
+--- a/init/property_service.cpp
++++ b/init/property_service.cpp
+@@ -1237,7 +1237,6 @@ static void SetSafetyNetProps() {
+         {"oplusboot.verifiedbootstate", "green"},
+         {"sys.oem_unlock_allowed", "0"},
+         {"ro.oem_unlock_supported", "0"},
+-        {"ro.crypto.state", "encrypted"},
+         {"ro.boot.flash.locked", "1"},
+         {"ro.is_ever_orange", "0"},
+         {"ro.secureboot.devicelock", "1"},
+diff --git a/libkeyutils/Android.bp b/libkeyutils/Android.bp
+new file mode 100644
+index 0000000000000000000000000000000000000000..858c18beebe4b076432f46d0006a0a6702557b93
+--- /dev/null
++++ b/libkeyutils/Android.bp
+@@ -0,0 +1,20 @@
++package {
++    default_applicable_licenses: ["system_core_libkeyutils_license"],
++}
++
++license {
++    name: "system_core_libkeyutils_license",
++    visibility: [":__subpackages__"],
++    license_kinds: [
++        "SPDX-license-identifier-BSD",
++    ],
++}
++
++cc_library {
++    name: "libkeyutils",
++    cflags: ["-Werror"],
++    recovery_available: true,
++    export_include_dirs: ["include"],
++    srcs: ["keyutils.cpp"],
++    stl: "none",
++}
+diff --git a/libkeyutils/include/keyutils.h b/libkeyutils/include/keyutils.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..d62d36df93511f7886952d8d2b82a5c356313932
+--- /dev/null
++++ b/libkeyutils/include/keyutils.h
+@@ -0,0 +1,48 @@
++/*
++ * Copyright (C) 2017 The Android Open Source Project
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are met:
++ *  * Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *  * Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
++ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
++ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
++ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++ * POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#ifndef _KEYUTILS_H_
++#define _KEYUTILS_H_
++
++#include <linux/keyctl.h>
++#include <stddef.h>
++#include <stdint.h>
++#include <sys/cdefs.h>
++
++__BEGIN_DECLS
++
++typedef int32_t key_serial_t;
++
++key_serial_t add_key(const char* type, const char* description, const void* payload,
++                     size_t payload_length, key_serial_t ring_id);
++
++long keyctl_search(key_serial_t ring_id, const char* type, const char* description,
++                   key_serial_t dest_ring_id);
++
++long keyctl_unlink(key_serial_t key, key_serial_t keyring);
++
++__END_DECLS
++
++#endif
+diff --git a/libkeyutils/keyutils.cpp b/libkeyutils/keyutils.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..74c9481a2521c97cb01208260cf773b10c8e49ce
+--- /dev/null
++++ b/libkeyutils/keyutils.cpp
+@@ -0,0 +1,43 @@
++/*
++ * Copyright (C) 2017 The Android Open Source Project
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are met:
++ *  * Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *  * Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
++ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
++ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
++ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++ * POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#include <keyutils.h>
++
++#include <sys/syscall.h>
++#include <unistd.h>
++
++key_serial_t add_key(const char* type, const char* description, const void* payload,
++                     size_t payload_length, key_serial_t ring_id) {
++    return syscall(__NR_add_key, type, description, payload, payload_length, ring_id);
++}
++
++long keyctl_search(key_serial_t ring_id, const char* type, const char* description,
++                   key_serial_t dest_ring_id) {
++    return syscall(__NR_keyctl, KEYCTL_SEARCH, ring_id, type, description, dest_ring_id);
++}
++
++long keyctl_unlink(key_serial_t key, key_serial_t keyring) {
++    return syscall(__NR_keyctl, KEYCTL_UNLINK, key, keyring);
++}
+diff --git a/libprocessgroup/setup/cgroup_map_write.cpp b/libprocessgroup/setup/cgroup_map_write.cpp
+index 0b26e9568e9d2cb6d94ae2287592069cf79ef95d..57520b7c6376a5d7f3bf9072db58b5101627b85b 100644
+--- a/libprocessgroup/setup/cgroup_map_write.cpp
++++ b/libprocessgroup/setup/cgroup_map_write.cpp
+@@ -201,6 +201,17 @@ static bool MountV1CgroupController(const CgroupDescriptor& descriptor) {
+ 
+     if (mount("none", controller->path(), "cgroup", MS_NODEV | MS_NOEXEC | MS_NOSUID,
+               options.c_str())) {
++        // cpuset_v2_mode is not present in the wisdom 4.4 cgroup parser. Keep
++        // the Android-required noprefix behavior, but retry without the newer
++        // option when an old kernel rejects the first mount request.
++        if (!strcmp(controller->name(), "cpuset") && (errno == ENOENT || errno == EINVAL)) {
++            LOG(INFO) << "Mounting cpuset with cpuset_v2_mode failed. Retrying without it.";
++            options = "cpuset,noprefix";
++            if (mount("none", controller->path(), "cgroup", MS_NODEV | MS_NOEXEC | MS_NOSUID,
++                      options.c_str()) == 0) {
++                return true;
++            }
++        }
+         if (IsOptionalController(controller)) {
+             PLOG(INFO) << "Failed to mount optional controller " << controller->name();
+             return true;
+diff --git a/rootdir/init.rc b/rootdir/init.rc
+index d33dd5e18c7c24e2cdf38cf8efeaacca8b8892db..81328c662eda5bc6ae109d0bf615480d828921b2 100644
+--- a/rootdir/init.rc
++++ b/rootdir/init.rc
+@@ -1088,6 +1088,22 @@ on post-fs-data
+     # Set SELinux security contexts on upgrade or policy update.
+     restorecon --recursive --skip-ce /data
+ 
++    # SM-P205 can retain a legacy Android data tree whose security.sehash
++    # causes the recursive pass above to skip /data entirely.  Re-apply the
++    # exact platform labels needed before derive_classpath, odsign and
++    # installd; these are all standard platform paths and the operation is
++    # idempotent on devices that already have the correct labels.
++    restorecon_recursive --force /data/system/environ
++    restorecon_recursive --force /data/misc/installd
++    restorecon_recursive --force /data/misc/odsign
++    restorecon_recursive --force /data/misc/odsign/metrics
++    restorecon_recursive --force /data/misc/surfaceflinger
++    # The SM-P205 userdata tree predates the current Bluetooth data types.
++    # Run this from platform init: vendor_init is intentionally not allowed
++    # to relabel system_data_file directories.
++    restorecon_recursive --force /data/misc/bluedroid
++    restorecon_recursive --force /data/misc/bluetooth
++
+     # Define and export *CLASSPATH variables
+     # Must start before 'odsign', as odsign depends on *CLASSPATH variables
+     exec_start derive_classpath
