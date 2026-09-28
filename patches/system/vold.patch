@@ -11,7 +11,7 @@ index 3e7cae7e5eff9d9c98b6e31fe0779e1eac8f8b74..46757cca6925f7a759b85dcd12ada86f
          "liblogwrap",
          "libselinux",
 diff --git a/KeyUtil.cpp b/KeyUtil.cpp
-index 805776c95fdb05a91ac288f48667662a23295f46..c96d2c942173d136cae6303a98036581d7799a8e 100644
+index 805776c95fdb05a91ac288f48667662a23295f46..675fa49e5d02aad49c24bbe4e83b24d63a47f926 100644
 --- a/KeyUtil.cpp
 +++ b/KeyUtil.cpp
 @@ -24,8 +24,10 @@
@@ -63,7 +63,7 @@ index 805776c95fdb05a91ac288f48667662a23295f46..c96d2c942173d136cae6303a98036581
  const KeyGeneration neverGen() {
      return KeyGeneration{0, false, KeyType::kRaw};
  }
-@@ -233,6 +266,77 @@ static std::string keyrefstring(const std::string& raw_ref) {
+@@ -233,6 +266,86 @@ static std::string keyrefstring(const std::string& raw_ref) {
      return o.str();
  }
  
@@ -112,8 +112,17 @@ index 805776c95fdb05a91ac288f48667662a23295f46..c96d2c942173d136cae6303a98036581
 +                        << device_keyring;
 +            return false;
 +        }
-+        if (syscall(__NR_keyctl, KEYCTL_SETPERM, key_id, 0x3f3f3f3f) == -1) {
-+            PLOG(WARNING) << "Failed to set permissions on legacy fscrypt key " << key_id;
++        // Filesystem users need search to resolve this key.  Vold (root) also
++        // needs write if add_key updates an existing logon key with this name.
++        // Unlinking needs write on the containing keyring, not on this key.
++        constexpr uint32_t kLegacyFscryptKeyPerms =
++                KEYUTILS_POS_SEARCH | KEYUTILS_USR_VIEW | KEYUTILS_USR_WRITE | KEYUTILS_USR_SEARCH;
++        if (syscall(__NR_keyctl, KEYCTL_SETPERM, key_id, kLegacyFscryptKeyPerms) == -1) {
++            PLOG(ERROR) << "Failed to restrict permissions on legacy fscrypt key " << key_id;
++            if (keyctl_unlink(key_id, device_keyring) != 0) {
++                PLOG(ERROR) << "Failed to unlink unrestricted legacy fscrypt key " << key_id;
++            }
++            return false;
 +        }
 +        LOG(DEBUG) << "Added legacy fscrypt key " << key_id << " (" << ref << ") to keyring "
 +                   << device_keyring;
@@ -141,7 +150,7 @@ index 805776c95fdb05a91ac288f48667662a23295f46..c96d2c942173d136cae6303a98036581
  // Build a struct fscrypt_key_specifier for use in the key management ioctls.
  static bool buildKeySpecifier(fscrypt_key_specifier* spec, const EncryptionPolicy& policy) {
      switch (policy.options.version) {
-@@ -283,6 +387,9 @@ bool installKey(const std::string& mountpoint, const EncryptionOptions& options,
+@@ -283,6 +396,9 @@ bool installKey(const std::string& mountpoint, const EncryptionOptions& options,
              } else {
                  policy->key_raw_ref = generateKeyRef((const uint8_t*)key.data(), key.size());
              }
@@ -151,7 +160,7 @@ index 805776c95fdb05a91ac288f48667662a23295f46..c96d2c942173d136cae6303a98036581
              if (!buildKeySpecifier(&arg->key_spec, *policy)) {
                  return false;
              }
-@@ -403,6 +510,10 @@ static void waitForBusyFiles(const struct fscrypt_key_specifier key_spec, const
+@@ -403,6 +519,10 @@ static void waitForBusyFiles(const struct fscrypt_key_specifier key_spec, const
  bool evictKey(const std::string& mountpoint, const EncryptionPolicy& policy) {
      const std::lock_guard<std::mutex> lock(fscrypt_keyring_mutex);
  

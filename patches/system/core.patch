@@ -48,10 +48,10 @@ index 2e4a3b4dc77c57b9edbc9ed5350aa4f546af409b..c8691693b138428323264cd9c3df45cf
      SetProperty(prop_name, std::to_string(t.duration().count()));
  
 diff --git a/init/fscrypt_init_extensions.cpp b/init/fscrypt_init_extensions.cpp
-index 6a561e54cc694cc7048d960969c1b0a976d804e8..1bcf2fbfc38d0623d9ec523a514257074cd55cc8 100644
+index 6a561e54cc694cc7048d960969c1b0a976d804e8..578682b2f3cebe1e2c9c599ad4b3bf984b4fbbfa 100644
 --- a/init/fscrypt_init_extensions.cpp
 +++ b/init/fscrypt_init_extensions.cpp
-@@ -34,12 +34,41 @@
+@@ -34,12 +34,48 @@
  #include <cutils/properties.h>
  #include <cutils/sockets.h>
  #include <fscrypt/fscrypt.h>
@@ -64,25 +64,32 @@ index 6a561e54cc694cc7048d960969c1b0a976d804e8..1bcf2fbfc38d0623d9ec523a51425707
  using namespace android::fscrypt;
  
 +bool FscryptInstallKeyring() {
-+    if (keyctl_search(KEY_SPEC_SESSION_KEYRING, "keyring", "fscrypt", 0) != -1) {
-+        LOG(INFO) << "fscrypt keyring is already created";
-+        return true;
-+    }
-+
-+    if (syscall(__NR_keyctl, KEYCTL_JOIN_SESSION_KEYRING, nullptr) == -1) {
-+        PLOG(ERROR) << "Failed to join session keyring";
-+        return false;
-+    }
-+
 +    key_serial_t device_keyring =
-+            add_key("keyring", "fscrypt", 0, 0, KEY_SPEC_SESSION_KEYRING);
++            keyctl_search(KEY_SPEC_SESSION_KEYRING, "keyring", "fscrypt", 0);
 +    if (device_keyring == -1) {
-+        PLOG(ERROR) << "Failed to create fscrypt keyring";
-+        return false;
++        if (syscall(__NR_keyctl, KEYCTL_JOIN_SESSION_KEYRING, nullptr) == -1) {
++            PLOG(ERROR) << "Failed to join session keyring";
++            return false;
++        }
++
++        device_keyring = add_key("keyring", "fscrypt", 0, 0, KEY_SPEC_SESSION_KEYRING);
++        if (device_keyring == -1) {
++            PLOG(ERROR) << "Failed to create fscrypt keyring";
++            return false;
++        }
++    } else {
++        LOG(INFO) << "fscrypt keyring is already created";
 +    }
 +
-+    if (syscall(__NR_keyctl, KEYCTL_SETPERM, device_keyring, 0x3f3f3f3f) == -1) {
-+        PLOG(ERROR) << "Failed to set permissions on fscrypt keyring";
++    // All descendants need to search for fscrypt keys, but only the root-owned
++    // init/vold path needs to add or remove them.  A child possessing this
++    // session keyring must not gain write, link, or setattr rights.
++    constexpr uint32_t kFscryptKeyringPerms =
++            KEYUTILS_POS_SEARCH | KEYUTILS_USR_VIEW | KEYUTILS_USR_WRITE | KEYUTILS_USR_SEARCH;
++    if (syscall(__NR_keyctl, KEYCTL_SETPERM, device_keyring, kFscryptKeyringPerms) == -1) {
++        // The kernel default gives every inheriting possessor write access.
++        // Never continue booting with that broader permission mask.
++        PLOG(FATAL) << "Failed to restrict permissions on fscrypt keyring";
 +    }
 +
 +    LOG(INFO) << "fscrypt keyring created with id " << device_keyring << " in process "
@@ -172,10 +179,10 @@ index 0000000000000000000000000000000000000000..858c18beebe4b076432f46d0006a0a67
 +}
 diff --git a/libkeyutils/include/keyutils.h b/libkeyutils/include/keyutils.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..d62d36df93511f7886952d8d2b82a5c356313932
+index 0000000000000000000000000000000000000000..077a601493d0e7f639f00ecce22666b6d62f7e4b
 --- /dev/null
 +++ b/libkeyutils/include/keyutils.h
-@@ -0,0 +1,48 @@
+@@ -0,0 +1,56 @@
 +/*
 + * Copyright (C) 2017 The Android Open Source Project
 + * All rights reserved.
@@ -212,6 +219,14 @@ index 0000000000000000000000000000000000000000..d62d36df93511f7886952d8d2b82a5c3
 +__BEGIN_DECLS
 +
 +typedef int32_t key_serial_t;
++
++// Linux key permission bits.  The kernel-only <linux/key.h> defines these,
++// but the userspace UAPI header does not.  Possessor rights also apply to
++// processes that inherit a session keyring from init.
++#define KEYUTILS_POS_SEARCH 0x08000000u
++#define KEYUTILS_USR_VIEW 0x00010000u
++#define KEYUTILS_USR_WRITE 0x00040000u
++#define KEYUTILS_USR_SEARCH 0x00080000u
 +
 +key_serial_t add_key(const char* type, const char* description, const void* payload,
 +                     size_t payload_length, key_serial_t ring_id);
