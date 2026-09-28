@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "source": "DerpFest 17 / wisdom Android 17 verified #55 workspace",
+  "source": "DerpFest 17 / wisdom Android 17 release review 2026-09-28; device validation pending",
   "patches": [
     {
       "project": "bootable/recovery",
