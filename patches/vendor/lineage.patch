@@ -1,5 +1,5 @@
 diff --git a/build/tasks/kernel.mk b/build/tasks/kernel.mk
-index 04c6cadad9516c3dd7a76ae4e7d0832f096063aa..87fd7fe7bec8e63473d6ae3db2a0ef64df3b1b1e 100644
+index 723e4090c48583d3807508074b4bdaf3766be798..fada61b16f01bb2e2ef79b7530699b366107574e 100644
 --- a/build/tasks/kernel.mk
 +++ b/build/tasks/kernel.mk
 @@ -385,10 +385,10 @@ ifneq ($(filter $(FULL_KERNEL_BUILD),true)$(TARGET_KERNEL_PLATFORM_TARGET),)
@@ -101,7 +101,7 @@ index a253067a9fd5e101035cb2c189b6bd71ea7ace85..9a43c355767732ad49faa044d6849a71
  # Storage manager
  PRODUCT_PRODUCT_PROPERTIES += \
 diff --git a/config/derpfest.mk b/config/derpfest.mk
-index 2d873accaa42e7b47c9ac1175d756fdf662ae01f..34c74cca180eafb2a099c90a4cf05f5d7dd8868a 100644
+index 5c7e61bf6352a8eef670c64012067df1263f9db7..6de2afb8f68b6766aeaed8545783657ff3f5349c 100644
 --- a/config/derpfest.mk
 +++ b/config/derpfest.mk
 @@ -1,9 +1,16 @@
@@ -157,7 +157,7 @@ index 2d873accaa42e7b47c9ac1175d756fdf662ae01f..34c74cca180eafb2a099c90a4cf05f5d
      GameSpace \
      LMOFreeform \
      LMOFreeformSidebar \
-@@ -76,10 +85,19 @@ PRODUCT_PACKAGES += \
+@@ -75,10 +84,19 @@ PRODUCT_PACKAGES += \
      Prospect \
      SystemUIFundamental
  
@@ -177,7 +177,7 @@ index 2d873accaa42e7b47c9ac1175d756fdf662ae01f..34c74cca180eafb2a099c90a4cf05f5d
  
  # ColumbusService
  ifneq ($(TARGET_SUPPORTS_QUICK_TAP),false)
-@@ -97,16 +115,15 @@ ifeq ($(TARGET_FACE_UNLOCK_SUPPORTED),true)
+@@ -96,16 +114,15 @@ ifeq ($(TARGET_FACE_UNLOCK_SUPPORTED),true)
      PRODUCT_COPY_FILES += \
          frameworks/native/data/etc/android.hardware.biometrics.face.xml:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/permissions/android.hardware.biometrics.face.xml
  else
@@ -196,7 +196,7 @@ index 2d873accaa42e7b47c9ac1175d756fdf662ae01f..34c74cca180eafb2a099c90a4cf05f5d
  # DerpFest Clocks
  $(call inherit-product, packages/apps/DerpFestClocks/clocks.mk)
  
-@@ -114,7 +131,9 @@ $(call inherit-product, packages/apps/DerpFestClocks/clocks.mk)
+@@ -113,7 +130,9 @@ $(call inherit-product, packages/apps/DerpFestClocks/clocks.mk)
  $(call inherit-product, vendor/pixel/clocks/products/clocks.mk)
  
  # Pixel GMS

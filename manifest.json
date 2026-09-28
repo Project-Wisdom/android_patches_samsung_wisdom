@@ -29,7 +29,7 @@
     {
       "project": "frameworks/native",
       "upstream": "https://github.com/DerpFest-AOSP/android_frameworks_native",
-      "base_commit": "f69893a1a726ad61c7f0416c33096653a6a61648",
+      "base_commit": "76e6ac4deebcc88824fed134e73db2613aa58e8f",
       "patch": "patches/frameworks/native.patch",
       "sha256": "8639a47c086370760e2dc3133da8426fe1b75360457afd711a044adefbfebb2a",
       "files": 1
@@ -37,7 +37,7 @@
     {
       "project": "hardware/interfaces",
       "upstream": "https://github.com/DerpFest-AOSP/android_hardware_interfaces",
-      "base_commit": "7132e750eb7169a68b076a1fd0b563a4182cddb7",
+      "base_commit": "8a917840bdd7f197705fcaa32c2fdb2f043f2f4d",
       "patch": "patches/hardware/interfaces.patch",
       "sha256": "661900869f33c6e4de1da63f1979af0b5897ae9266608a091f56d3f379ff3395",
       "files": 1
@@ -109,9 +109,9 @@
     {
       "project": "vendor/lineage",
       "upstream": "https://github.com/DerpFest-AOSP/android_vendor_derpfest",
-      "base_commit": "ee12ec9235701b123e64bcf91c0a0db31802389f",
+      "base_commit": "3964fa94b84534a595f95cec07f97fd26a7e864e",
       "patch": "patches/vendor/lineage.patch",
-      "sha256": "a3938b2632be71bbae7e3b53bacabccb51df02dec08fbabde2d022875659562e",
+      "sha256": "4e6a21bf0be2adae05aa5783797f0733cbe5f3a887b2f6de65ded47cf96b5d99",
       "files": 4
     },
     {
