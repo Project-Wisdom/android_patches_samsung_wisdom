@@ -11,6 +11,14 @@
       "files": 1
     },
     {
+      "project": "build/soong",
+      "upstream": "https://github.com/DerpFest-AOSP/android_build_soong",
+      "base_commit": "870a9baed1509ab910fee00091839bea8c1f84a0",
+      "patch": "patches/build/soong.patch",
+      "sha256": "9d8a6f5d026def029b12e725e4ee9c2bc1dfe2a8546c8a2bb0d7c2afd44fbb0a",
+      "files": 1
+    },
+    {
       "project": "external/tinyalsa",
       "upstream": "https://github.com/LineageOS/android_external_tinyalsa",
       "base_commit": "28a6a6bff916f5c617b73dcb0fec1a9ade7b9335",

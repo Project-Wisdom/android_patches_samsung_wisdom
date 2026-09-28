@@ -1,0 +1,12 @@
+diff --git a/ui/build/androidmk_denylist.go b/ui/build/androidmk_denylist.go
+index 8a1e384e13d23ceb2ef4b56f039b4840f8743453..0145eb2731dae987267a3ffa6b8a1f685f602157 100644
+--- a/ui/build/androidmk_denylist.go
++++ b/ui/build/androidmk_denylist.go
+@@ -109,6 +109,7 @@ var ignore_androidmks []string = []string{
+ 	"external/google-breakpad/",
+ 	"external/googletest/",
+ 	"external/libaom/",
++	"external/libjxl/third_party/sjpeg/",
+ 	"external/libusb/",
+ 	"external/libvpx/",
+ 	"external/libwebm/",
