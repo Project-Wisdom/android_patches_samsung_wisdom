@@ -48,10 +48,10 @@ index 2e4a3b4dc77c57b9edbc9ed5350aa4f546af409b..c8691693b138428323264cd9c3df45cf
      SetProperty(prop_name, std::to_string(t.duration().count()));
  
 diff --git a/init/fscrypt_init_extensions.cpp b/init/fscrypt_init_extensions.cpp
-index 6a561e54cc694cc7048d960969c1b0a976d804e8..578682b2f3cebe1e2c9c599ad4b3bf984b4fbbfa 100644
+index 6a561e54cc694cc7048d960969c1b0a976d804e8..3c46f82e521a875c24125f3fb3be1092a754c7ae 100644
 --- a/init/fscrypt_init_extensions.cpp
 +++ b/init/fscrypt_init_extensions.cpp
-@@ -34,12 +34,48 @@
+@@ -34,12 +34,50 @@
  #include <cutils/properties.h>
  #include <cutils/sockets.h>
  #include <fscrypt/fscrypt.h>
@@ -83,9 +83,11 @@ index 6a561e54cc694cc7048d960969c1b0a976d804e8..578682b2f3cebe1e2c9c599ad4b3bf98
 +
 +    // All descendants need to search for fscrypt keys, but only the root-owned
 +    // init/vold path needs to add or remove them.  A child possessing this
-+    // session keyring must not gain write, link, or setattr rights.
++    // session keyring must not gain write, link, or setattr rights.  Init
++    // retains owner setattr so later mount_all calls can reapply this mask.
 +    constexpr uint32_t kFscryptKeyringPerms =
-+            KEYUTILS_POS_SEARCH | KEYUTILS_USR_VIEW | KEYUTILS_USR_WRITE | KEYUTILS_USR_SEARCH;
++            KEYUTILS_POS_SEARCH | KEYUTILS_USR_VIEW | KEYUTILS_USR_WRITE |
++            KEYUTILS_USR_SEARCH | KEYUTILS_USR_SETATTR;
 +    if (syscall(__NR_keyctl, KEYCTL_SETPERM, device_keyring, kFscryptKeyringPerms) == -1) {
 +        // The kernel default gives every inheriting possessor write access.
 +        // Never continue booting with that broader permission mask.
@@ -179,10 +181,10 @@ index 0000000000000000000000000000000000000000..858c18beebe4b076432f46d0006a0a67
 +}
 diff --git a/libkeyutils/include/keyutils.h b/libkeyutils/include/keyutils.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..077a601493d0e7f639f00ecce22666b6d62f7e4b
+index 0000000000000000000000000000000000000000..b84dc3ae6dd8524ed71d0f72b4466fe47f134bb9
 --- /dev/null
 +++ b/libkeyutils/include/keyutils.h
-@@ -0,0 +1,56 @@
+@@ -0,0 +1,57 @@
 +/*
 + * Copyright (C) 2017 The Android Open Source Project
 + * All rights reserved.
@@ -227,6 +229,7 @@ index 0000000000000000000000000000000000000000..077a601493d0e7f639f00ecce22666b6
 +#define KEYUTILS_USR_VIEW 0x00010000u
 +#define KEYUTILS_USR_WRITE 0x00040000u
 +#define KEYUTILS_USR_SEARCH 0x00080000u
++#define KEYUTILS_USR_SETATTR 0x00200000u
 +
 +key_serial_t add_key(const char* type, const char* description, const void* payload,
 +                     size_t payload_length, key_serial_t ring_id);

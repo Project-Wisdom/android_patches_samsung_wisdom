@@ -95,7 +95,7 @@
       "upstream": "https://github.com/DerpFest-AOSP/android_system_core",
       "base_commit": "44b32ebbfce65e8de550878069ea5b24aea0077f",
       "patch": "patches/system/core.patch",
-      "sha256": "f12572f234f12fd99d740dd7808f2a24793d554db6862a0649e2260e6855c0d2",
+      "sha256": "a37186a4dc71b5c6699c3d6d8cbdd90ce8ca105a0905d3700ce2112f1d6defeb",
       "files": 11
     },
     {
@@ -111,7 +111,7 @@
       "upstream": "https://github.com/LineageOS/android_system_vold",
       "base_commit": "11d8982f824d52e8122c7aa732207ba66b8f23c8",
       "patch": "patches/system/vold.patch",
-      "sha256": "c297a648b8c10d477f11fda2839907baf5be1e2e65092be98f76e7a3cb99176c",
+      "sha256": "808d479b5be041bc9a51ecadb4f5c4b2be65a1f816ac8c8148d3521bb8ccfe47",
       "files": 2
     },
     {
