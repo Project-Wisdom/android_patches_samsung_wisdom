@@ -1,5 +1,5 @@
 diff --git a/init/Android.bp b/init/Android.bp
-index 5a68ddb2d23b175ef6323c950826ae69c62334cd..0e8c0ad2437363102168139ce7e9c2559a699bbc 100644
+index 5a68ddb2d..0e8c0ad24 100644
 --- a/init/Android.bp
 +++ b/init/Android.bp
 @@ -209,6 +209,7 @@ libinit_cc_defaults {
@@ -11,7 +11,7 @@ index 5a68ddb2d23b175ef6323c950826ae69c62334cd..0e8c0ad2437363102168139ce7e9c255
          "liblogwrap",
          "liblp",
 diff --git a/init/builtins.cpp b/init/builtins.cpp
-index 2e4a3b4dc77c57b9edbc9ed5350aa4f546af409b..c8691693b138428323264cd9c3df45cf4a428449 100644
+index 2e4a3b4dc..c8691693b 100644
 --- a/init/builtins.cpp
 +++ b/init/builtins.cpp
 @@ -595,6 +595,10 @@ static Result<void> queue_fs_event(int code) {
@@ -48,7 +48,7 @@ index 2e4a3b4dc77c57b9edbc9ed5350aa4f546af409b..c8691693b138428323264cd9c3df45cf
      SetProperty(prop_name, std::to_string(t.duration().count()));
  
 diff --git a/init/fscrypt_init_extensions.cpp b/init/fscrypt_init_extensions.cpp
-index 6a561e54cc694cc7048d960969c1b0a976d804e8..3c46f82e521a875c24125f3fb3be1092a754c7ae 100644
+index 6a561e54c..3c46f82e5 100644
 --- a/init/fscrypt_init_extensions.cpp
 +++ b/init/fscrypt_init_extensions.cpp
 @@ -34,12 +34,50 @@
@@ -103,7 +103,7 @@ index 6a561e54cc694cc7048d960969c1b0a976d804e8..3c46f82e521a875c24125f3fb3be1092
  static void delete_dir_contents(const std::string& dir) {
      char* const paths[2] = {const_cast<char*>(dir.c_str()), nullptr};
 diff --git a/init/fscrypt_init_extensions.h b/init/fscrypt_init_extensions.h
-index 5e0269a3b096e167d7ecc76c15afdd221a4560f9..d357bb2fd82bdd86c958bcdb460f1508111d33a1 100644
+index 5e0269a3b..d357bb2fd 100644
 --- a/init/fscrypt_init_extensions.h
 +++ b/init/fscrypt_init_extensions.h
 @@ -25,5 +25,6 @@ enum class FscryptAction {
@@ -114,7 +114,7 @@ index 5e0269a3b096e167d7ecc76c15afdd221a4560f9..d357bb2fd82bdd86c958bcdb460f1508
  bool FscryptSetDirectoryPolicy(const std::string& ref_basename, FscryptAction action,
                                 const std::string& dir);
 diff --git a/init/init.cpp b/init/init.cpp
-index aec2688fc8387d1166be7e6a6e24e4a536337c03..f3a70cd8151be623fc708c09488c24b0d4c0c26d 100644
+index aec2688fc..f3a70cd81 100644
 --- a/init/init.cpp
 +++ b/init/init.cpp
 @@ -72,6 +72,7 @@
@@ -142,20 +142,20 @@ index aec2688fc8387d1166be7e6a6e24e4a536337c03..f3a70cd8151be623fc708c09488c24b0
      if (auto result = epoll.Open(); !result.ok()) {
          PLOG(FATAL) << result.error();
 diff --git a/init/property_service.cpp b/init/property_service.cpp
-index 40eed44906756d1d51d29f8ce6bc40b91b3305a3..1fafe226f25646a7f02138d86cc109dc86bc6641 100644
+index 83c02e41f..0fbe38c54 100644
 --- a/init/property_service.cpp
 +++ b/init/property_service.cpp
-@@ -1237,7 +1237,6 @@ static void SetSafetyNetProps() {
+@@ -1207,7 +1207,6 @@ static void SetSafetyNetProps() {
          {"oplusboot.verifiedbootstate", "green"},
          {"sys.oem_unlock_allowed", "0"},
          {"ro.oem_unlock_supported", "0"},
 -        {"ro.crypto.state", "encrypted"},
-         {"ro.boot.flash.locked", "1"},
          {"ro.is_ever_orange", "0"},
          {"ro.secureboot.devicelock", "1"},
+         {"ro.secureboot.lockstate", "locked"}
 diff --git a/libkeyutils/Android.bp b/libkeyutils/Android.bp
 new file mode 100644
-index 0000000000000000000000000000000000000000..858c18beebe4b076432f46d0006a0a6702557b93
+index 000000000..858c18bee
 --- /dev/null
 +++ b/libkeyutils/Android.bp
 @@ -0,0 +1,20 @@
@@ -181,7 +181,7 @@ index 0000000000000000000000000000000000000000..858c18beebe4b076432f46d0006a0a67
 +}
 diff --git a/libkeyutils/include/keyutils.h b/libkeyutils/include/keyutils.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..b84dc3ae6dd8524ed71d0f72b4466fe47f134bb9
+index 000000000..b84dc3ae6
 --- /dev/null
 +++ b/libkeyutils/include/keyutils.h
 @@ -0,0 +1,57 @@
@@ -244,7 +244,7 @@ index 0000000000000000000000000000000000000000..b84dc3ae6dd8524ed71d0f72b4466fe4
 +#endif
 diff --git a/libkeyutils/keyutils.cpp b/libkeyutils/keyutils.cpp
 new file mode 100644
-index 0000000000000000000000000000000000000000..74c9481a2521c97cb01208260cf773b10c8e49ce
+index 000000000..74c9481a2
 --- /dev/null
 +++ b/libkeyutils/keyutils.cpp
 @@ -0,0 +1,43 @@
@@ -292,7 +292,7 @@ index 0000000000000000000000000000000000000000..74c9481a2521c97cb01208260cf773b1
 +    return syscall(__NR_keyctl, KEYCTL_UNLINK, key, keyring);
 +}
 diff --git a/libprocessgroup/setup/cgroup_map_write.cpp b/libprocessgroup/setup/cgroup_map_write.cpp
-index 0b26e9568e9d2cb6d94ae2287592069cf79ef95d..57520b7c6376a5d7f3bf9072db58b5101627b85b 100644
+index 0b26e9568..57520b7c6 100644
 --- a/libprocessgroup/setup/cgroup_map_write.cpp
 +++ b/libprocessgroup/setup/cgroup_map_write.cpp
 @@ -201,6 +201,17 @@ static bool MountV1CgroupController(const CgroupDescriptor& descriptor) {
@@ -314,7 +314,7 @@ index 0b26e9568e9d2cb6d94ae2287592069cf79ef95d..57520b7c6376a5d7f3bf9072db58b510
              PLOG(INFO) << "Failed to mount optional controller " << controller->name();
              return true;
 diff --git a/rootdir/init.rc b/rootdir/init.rc
-index d33dd5e18c7c24e2cdf38cf8efeaacca8b8892db..81328c662eda5bc6ae109d0bf615480d828921b2 100644
+index d33dd5e18..81328c662 100644
 --- a/rootdir/init.rc
 +++ b/rootdir/init.rc
 @@ -1088,6 +1088,22 @@ on post-fs-data

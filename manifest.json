@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "source": "DerpFest 17 / wisdom Android 17 release review 2026-09-28; device validation pending",
+  "source": "DerpFest 17 / wisdom; manifest 04cf624 baseline 2026-10-05; dark proportional Monet animation and Fossify Gallery; full OTA boot and QS orientation validated; full hardware regression pending",
   "patches": [
     {
       "project": "bootable/recovery",
       "upstream": "https://github.com/DerpFest-AOSP/android_bootable_recovery",
-      "base_commit": "82c81d5b4e14bf1bff0778cfcb2c22382d250213",
+      "base_commit": "811791e48b7776e3fd31e59cb6b9b3803654fbaa",
       "patch": "patches/bootable/recovery.patch",
       "sha256": "1a4929bc90c2cf0cf34a9c99d118b7f08a4c6bb9d93a8e171eba8803e0dff986",
       "files": 1
@@ -35,6 +35,14 @@
       "files": 3
     },
     {
+      "project": "frameworks/base",
+      "upstream": "https://github.com/DerpFest-AOSP/android_frameworks_base",
+      "base_commit": "8f68d5e69a9a2b1e72cb70e49a5711756171a374",
+      "patch": "patches/frameworks/base.patch",
+      "sha256": "aedabe770dd2e2e3112bc6a7143b60bd72a2eb08ca9fef0735e089f53f8c80ea",
+      "files": 1
+    },
+    {
       "project": "frameworks/native",
       "upstream": "https://github.com/DerpFest-AOSP/android_frameworks_native",
       "base_commit": "76e6ac4deebcc88824fed134e73db2613aa58e8f",
@@ -53,7 +61,7 @@
     {
       "project": "hardware/lineage/interfaces",
       "upstream": "https://github.com/LineageOS/android_hardware_lineage_interfaces",
-      "base_commit": "da284a233d877581aa25cdfb10f693f67dfeaa59",
+      "base_commit": "8e74530186f555d7f4802a579e901535d9f0968f",
       "patch": "patches/hardware/lineage/interfaces.patch",
       "sha256": "dbc6f219b21e0f6b0b24b799a766092d7070910fb7110e287bd9ff6db2c52ec2",
       "files": 1
@@ -93,9 +101,9 @@
     {
       "project": "system/core",
       "upstream": "https://github.com/DerpFest-AOSP/android_system_core",
-      "base_commit": "44b32ebbfce65e8de550878069ea5b24aea0077f",
+      "base_commit": "34f26482b2aec12d266f003daa366b270895bb99",
       "patch": "patches/system/core.patch",
-      "sha256": "a37186a4dc71b5c6699c3d6d8cbdd90ce8ca105a0905d3700ce2112f1d6defeb",
+      "sha256": "0a4ec292837c0f47932c227248b8caf6a759c44382a3033843c57e82c3eade67",
       "files": 11
     },
     {
@@ -117,10 +125,10 @@
     {
       "project": "vendor/lineage",
       "upstream": "https://github.com/DerpFest-AOSP/android_vendor_derpfest",
-      "base_commit": "3964fa94b84534a595f95cec07f97fd26a7e864e",
+      "base_commit": "9d4b93f3302c92384346a9a3d04f6cbb8b0452f5",
       "patch": "patches/vendor/lineage.patch",
-      "sha256": "4e6a21bf0be2adae05aa5783797f0733cbe5f3a887b2f6de65ded47cf96b5d99",
-      "files": 4
+      "sha256": "0215201a9d540effbe59201532b1fa2bc003e43c7824e3221d00af9935a926eb",
+      "files": 7
     },
     {
       "project": "vendor/overlay",

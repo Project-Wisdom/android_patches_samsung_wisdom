@@ -1,3 +1,147 @@
+diff --git a/bootanimation/Android.mk b/bootanimation/Android.mk
+index 8cfdb14d95a5b1c7e4708bddf36a513692b7805b..5100dc238732d1e4d7d5f85aafbd846a8a10c697 100644
+--- a/bootanimation/Android.mk
++++ b/bootanimation/Android.mk
+@@ -4,16 +4,25 @@ LOCAL_PATH := $(call my-dir)
+ # none. "none" leaves these modules out of PRODUCT_PACKAGES. legacy installs
+ # the old zip under both the light and dark filenames.
+ 
++# Do not declare install rules when the device keeps its own bootanimation.
++# Otherwise the target conflicts with a device PRODUCT_COPY_FILES entry.
++ifneq ($(filter default legacy,$(DERP_BOOTANIMATION)),)
++
+ ifeq ($(DERP_BOOTANIMATION),legacy)
+ bootanimation_light_source := $(LOCAL_PATH)/bootanimation_legacy.zip
+ bootanimation_dark_source := $(LOCAL_PATH)/bootanimation_legacy.zip
+ else
++ifeq ($(DERP_BOOTANIMATION_DARK_DEFAULT),true)
++bootanimation_light_source := $(LOCAL_PATH)/bootanimation-dark.zip
++else
+ bootanimation_light_source := $(LOCAL_PATH)/bootanimation.zip
++endif
+ bootanimation_dark_source := $(LOCAL_PATH)/bootanimation-dark.zip
+ endif
+ 
+ bootanimation_width := $(if $(TARGET_SCREEN_WIDTH),$(TARGET_SCREEN_WIDTH),0)
+ bootanimation_height := $(if $(TARGET_SCREEN_HEIGHT),$(TARGET_SCREEN_HEIGHT),0)
++bootanimation_fit_mode := $(if $(filter true,$(DERP_BOOTANIMATION_FILL)),fill,fit)
+ ifneq ($(filter true,$(TARGET_BOOTANIMATION_HALF_RES)),)
+ ifneq ($(bootanimation_width),0)
+ bootanimation_width := $(shell expr $(bootanimation_width) / 2)
+@@ -29,18 +38,20 @@ bootanimation_dark_generated := $(TARGET_OUT_INTERMEDIATES)/BOOTANIMATION/bootan
+ $(bootanimation_light_generated): PRIVATE_SCRIPT := $(LOCAL_PATH)/fit_desc.py
+ $(bootanimation_light_generated): PRIVATE_WIDTH := $(bootanimation_width)
+ $(bootanimation_light_generated): PRIVATE_HEIGHT := $(bootanimation_height)
++$(bootanimation_light_generated): PRIVATE_MODE := $(bootanimation_fit_mode)
+ $(bootanimation_light_generated): $(bootanimation_light_source) $(LOCAL_PATH)/fit_desc.py
+ 	@echo "Fitting bootanimation to $(PRIVATE_WIDTH)x$(PRIVATE_HEIGHT)"
+ 	@mkdir -p $(dir $@)
+-	$(hide) python3 $(PRIVATE_SCRIPT) $< $@ $(PRIVATE_WIDTH) $(PRIVATE_HEIGHT)
++	$(hide) python3 $(PRIVATE_SCRIPT) $< $@ $(PRIVATE_WIDTH) $(PRIVATE_HEIGHT) $(PRIVATE_MODE)
+ 
+ $(bootanimation_dark_generated): PRIVATE_SCRIPT := $(LOCAL_PATH)/fit_desc.py
+ $(bootanimation_dark_generated): PRIVATE_WIDTH := $(bootanimation_width)
+ $(bootanimation_dark_generated): PRIVATE_HEIGHT := $(bootanimation_height)
++$(bootanimation_dark_generated): PRIVATE_MODE := $(bootanimation_fit_mode)
+ $(bootanimation_dark_generated): $(bootanimation_dark_source) $(LOCAL_PATH)/fit_desc.py
+ 	@echo "Fitting dark bootanimation to $(PRIVATE_WIDTH)x$(PRIVATE_HEIGHT)"
+ 	@mkdir -p $(dir $@)
+-	$(hide) python3 $(PRIVATE_SCRIPT) $< $@ $(PRIVATE_WIDTH) $(PRIVATE_HEIGHT)
++	$(hide) python3 $(PRIVATE_SCRIPT) $< $@ $(PRIVATE_WIDTH) $(PRIVATE_HEIGHT) $(PRIVATE_MODE)
+ 
+ # ETC modules install under etc/, which would put these in
+ # /product/etc/media/. Bootanimation only looks in /product/media/.
+@@ -49,8 +60,7 @@ LOCAL_MODULE := derp_bootanimation
+ LOCAL_MODULE_CLASS := ETC
+ LOCAL_MODULE_TAGS := optional
+ LOCAL_MODULE_STEM := bootanimation.zip
+-LOCAL_MODULE_PATH := $(TARGET_OUT_PRODUCT)/media
+-LOCAL_PRODUCT_MODULE := true
++LOCAL_MODULE_PATH := $(TARGET_OUT)/media
+ include $(BUILD_SYSTEM)/base_rules.mk
+ $(LOCAL_BUILT_MODULE): $(bootanimation_light_generated)
+ 	@mkdir -p $(dir $@)
+@@ -61,8 +71,7 @@ LOCAL_MODULE := derp_bootanimation_dark
+ LOCAL_MODULE_CLASS := ETC
+ LOCAL_MODULE_TAGS := optional
+ LOCAL_MODULE_STEM := bootanimation-dark.zip
+-LOCAL_MODULE_PATH := $(TARGET_OUT_PRODUCT)/media
+-LOCAL_PRODUCT_MODULE := true
++LOCAL_MODULE_PATH := $(TARGET_OUT)/media
+ include $(BUILD_SYSTEM)/base_rules.mk
+ $(LOCAL_BUILT_MODULE): $(bootanimation_dark_generated)
+ 	@mkdir -p $(dir $@)
+@@ -72,5 +81,8 @@ bootanimation_light_source :=
+ bootanimation_dark_source :=
+ bootanimation_width :=
+ bootanimation_height :=
++bootanimation_fit_mode :=
+ bootanimation_light_generated :=
+ bootanimation_dark_generated :=
++
++endif # DERP_BOOTANIMATION selects a DerpFest animation
+diff --git a/bootanimation/fit_desc.py b/bootanimation/fit_desc.py
+index cd13f082a08c3fd2573a2e014aab6e6baad85b2b..441e41f53b8ba54cfad57cc4ca1760f179135af0 100644
+--- a/bootanimation/fit_desc.py
++++ b/bootanimation/fit_desc.py
+@@ -1,5 +1,5 @@
+ #!/usr/bin/env python3
+-# Rewrite desc.txt so a bootanimation fits inside a device panel.
++# Rewrite desc.txt so a bootanimation fits inside or fills a device panel.
+ #
+ # Bootanimation draws frames at the width and height on the first line of
+ # desc.txt and centers them. The PNGs stay at their authored size and are
+@@ -18,7 +18,7 @@ def fit(src_w, src_h, dst_w, dst_h):
+     return max(1, int(src_w * scale)), max(1, int(src_h * scale))
+ 
+ 
+-def rewrite(src, dst, dst_w, dst_h):
++def rewrite(src, dst, dst_w, dst_h, mode):
+     with zipfile.ZipFile(src) as zin:
+         lines = zin.read("desc.txt").decode("utf-8").splitlines(keepends=True)
+         replaced = False
+@@ -26,7 +26,13 @@ def rewrite(src, dst, dst_w, dst_h):
+         for line in lines:
+             if not replaced and line.strip():
+                 parts = line.split()
+-                out_w, out_h = fit(int(parts[0]), int(parts[1]), dst_w, dst_h)
++                if mode == "fill":
++                    # Let bootanimation scale the authored frames across the
++                    # whole display canvas. This is useful for devices whose
++                    # aspect ratio differs from the stock animation.
++                    out_w, out_h = dst_w, dst_h
++                else:
++                    out_w, out_h = fit(int(parts[0]), int(parts[1]), dst_w, dst_h)
+                 parts[0] = str(out_w)
+                 parts[1] = str(out_h)
+                 newline = "\n" if line.endswith("\n") else ""
+@@ -51,10 +57,14 @@ def rewrite(src, dst, dst_w, dst_h):
+ 
+ 
+ def main(argv):
+-    if len(argv) != 5:
+-        print("usage: fit_desc.py SRC.zip DST.zip WIDTH HEIGHT", file=sys.stderr)
++    if len(argv) not in (5, 6):
++        print("usage: fit_desc.py SRC.zip DST.zip WIDTH HEIGHT [fit|fill]", file=sys.stderr)
++        return 2
++    src, dst, width, height = argv[1:5]
++    mode = argv[5] if len(argv) == 6 else "fit"
++    if mode not in ("fit", "fill"):
++        print(f"mode must be 'fit' or 'fill', got {mode!r}", file=sys.stderr)
+         return 2
+-    src, dst, width, height = argv[1:]
+     try:
+         dst_w = int(width)
+         dst_h = int(height)
+@@ -62,7 +72,7 @@ def main(argv):
+         print(f"width and height must be integers, got {width!r} {height!r}",
+               file=sys.stderr)
+         return 2
+-    rewrite(src, dst, dst_w, dst_h)
++    rewrite(src, dst, dst_w, dst_h, mode)
+     return 0
+ 
+ 
 diff --git a/build/tasks/kernel.mk b/build/tasks/kernel.mk
 index 723e4090c48583d3807508074b4bdaf3766be798..fada61b16f01bb2e2ef79b7530699b366107574e 100644
 --- a/build/tasks/kernel.mk
@@ -51,7 +195,7 @@ index 723e4090c48583d3807508074b4bdaf3766be798..fada61b16f01bb2e2ef79b7530699b36
  			$(if $(BOOT_KERNEL_MODULES)$(BOOT_KERNEL_MODULES_FINDER),\
  				$(if $(BOOT_KERNEL_MODULES_FINDER), \
 diff --git a/config/common.mk b/config/common.mk
-index a253067a9fd5e101035cb2c189b6bd71ea7ace85..9a43c355767732ad49faa044d6849a7164a3106f 100644
+index bdc1d274a10b26f89f1baa2524b4f9c51e004dc5..9fec31056a3a05483aadc388c602054dec6d17f5 100644
 --- a/config/common.mk
 +++ b/config/common.mk
 @@ -13,11 +13,14 @@ PRODUCT_BRAND ?= DerpFest
@@ -77,7 +221,7 @@ index a253067a9fd5e101035cb2c189b6bd71ea7ace85..9a43c355767732ad49faa044d6849a71
  
  ifeq ($(PRODUCT_IS_ATV),true)
  ifeq ($(PRODUCT_ATV_CLIENTID_BASE),)
-@@ -237,8 +241,10 @@ PRODUCT_COPY_FILES += \
+@@ -261,8 +265,10 @@ PRODUCT_COPY_FILES += \
  # Overlay
  PRODUCT_PACKAGES += \
      FrameworkOverlayCustom \
@@ -89,7 +233,7 @@ index a253067a9fd5e101035cb2c189b6bd71ea7ace85..9a43c355767732ad49faa044d6849a71
  
  # OverlayFS
  PRODUCT_PACKAGES_DEBUG += \
-@@ -249,8 +255,10 @@ PRODUCT_PACKAGES += \
+@@ -273,8 +279,10 @@ PRODUCT_PACKAGES += \
      rsync
  
  # Google Assistant
@@ -101,10 +245,10 @@ index a253067a9fd5e101035cb2c189b6bd71ea7ace85..9a43c355767732ad49faa044d6849a71
  # Storage manager
  PRODUCT_PRODUCT_PROPERTIES += \
 diff --git a/config/derpfest.mk b/config/derpfest.mk
-index 5c7e61bf6352a8eef670c64012067df1263f9db7..6de2afb8f68b6766aeaed8545783657ff3f5349c 100644
+index 0ef667b3ff4cad335c79d7a65bc6bf4444a87a1c..9dcf2e7ed29151c086f3cd53ead2b7e9f0d14f57 100644
 --- a/config/derpfest.mk
 +++ b/config/derpfest.mk
-@@ -1,9 +1,16 @@
+@@ -1,5 +1,9 @@
  # Fonts
 +# Custom font families and lockscreen clock fonts are optional per target.
 +TARGET_INCLUDE_CUSTOM_FONTS ?= true
@@ -114,6 +258,9 @@ index 5c7e61bf6352a8eef670c64012067df1263f9db7..6de2afb8f68b6766aeaed8545783657f
  
  # Overlays
  include vendor/overlay/overlays.mk
+@@ -7,6 +11,9 @@ include vendor/overlay/overlays.mk
+ # Certification
+ $(call inherit-product, vendor/certification/config.mk)
  
 +# Include Google apps by default; device products can opt into vanilla.
 +WITH_GMS ?= true
@@ -121,7 +268,7 @@ index 5c7e61bf6352a8eef670c64012067df1263f9db7..6de2afb8f68b6766aeaed8545783657f
  # DRM Service
  PRODUCT_PRODUCT_PROPERTIES += \
      drm.service.enabled=true \
-@@ -24,11 +31,9 @@ PRODUCT_PRODUCT_PROPERTIES += \
+@@ -27,11 +34,9 @@ PRODUCT_PRODUCT_PROPERTIES += \
  # Blur
  ifneq ($(TARGET_SUPPORTS_BLUR),false)
  PRODUCT_PRODUCT_PROPERTIES += ro.surface_flinger.supports_background_blur=1
@@ -134,7 +281,7 @@ index 5c7e61bf6352a8eef670c64012067df1263f9db7..6de2afb8f68b6766aeaed8545783657f
  
  # Cloned app exemption
  PRODUCT_COPY_FILES += \
-@@ -46,8 +51,13 @@ PRODUCT_SYSTEM_EXT_PROPERTIES += \
+@@ -49,8 +54,13 @@ PRODUCT_SYSTEM_EXT_PROPERTIES += \
  PRODUCT_PRODUCT_PROPERTIES += \
      ro.storage_manager.show_opt_in=false
  
@@ -149,7 +296,7 @@ index 5c7e61bf6352a8eef670c64012067df1263f9db7..6de2afb8f68b6766aeaed8545783657f
  
  # Accord
  TARGET_INCLUDE_ACCORD ?= true
-@@ -65,7 +75,6 @@ PRODUCT_PACKAGES += \
+@@ -68,7 +78,6 @@ PRODUCT_PACKAGES += \
      AxThemeStore \
      BatteryStatsViewer \
      DerpWalls \
@@ -157,7 +304,7 @@ index 5c7e61bf6352a8eef670c64012067df1263f9db7..6de2afb8f68b6766aeaed8545783657f
      GameSpace \
      LMOFreeform \
      LMOFreeformSidebar \
-@@ -75,10 +84,19 @@ PRODUCT_PACKAGES += \
+@@ -78,10 +87,19 @@ PRODUCT_PACKAGES += \
      Prospect \
      SystemUIFundamental
  
@@ -177,7 +324,7 @@ index 5c7e61bf6352a8eef670c64012067df1263f9db7..6de2afb8f68b6766aeaed8545783657f
  
  # ColumbusService
  ifneq ($(TARGET_SUPPORTS_QUICK_TAP),false)
-@@ -96,16 +114,15 @@ ifeq ($(TARGET_FACE_UNLOCK_SUPPORTED),true)
+@@ -99,16 +117,15 @@ ifeq ($(TARGET_FACE_UNLOCK_SUPPORTED),true)
      PRODUCT_COPY_FILES += \
          frameworks/native/data/etc/android.hardware.biometrics.face.xml:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/permissions/android.hardware.biometrics.face.xml
  else
@@ -196,7 +343,7 @@ index 5c7e61bf6352a8eef670c64012067df1263f9db7..6de2afb8f68b6766aeaed8545783657f
  # DerpFest Clocks
  $(call inherit-product, packages/apps/DerpFestClocks/clocks.mk)
  
-@@ -113,7 +130,9 @@ $(call inherit-product, packages/apps/DerpFestClocks/clocks.mk)
+@@ -116,7 +133,9 @@ $(call inherit-product, packages/apps/DerpFestClocks/clocks.mk)
  $(call inherit-product, vendor/pixel/clocks/products/clocks.mk)
  
  # Pixel GMS
@@ -218,3 +365,17 @@ index f379074408431e7654917aafb6d404a08941a3f9..e6958015fc124ee21300fe4562f7cf92
 -    <component class="com.android.documentsui.LauncherActivity" enabled="false" />
 -  </component-override>
  </config>
+diff --git a/prebuilt/fossifygallery/apk/Android.bp b/prebuilt/fossifygallery/apk/Android.bp
+index 884553f4f38f9678a081e42502668006cc32228e..420e9f1474fafbfeb6c7ee663d05ad28181702df 100644
+--- a/prebuilt/fossifygallery/apk/Android.bp
++++ b/prebuilt/fossifygallery/apk/Android.bp
+@@ -7,8 +7,7 @@
+ android_app_import {
+     name: "FossifyGallery",
+     apk: "fossifygallery.apk",
+-    overrides: ["Gallery, Gallery2, Glimpse, SnapdragonGallery"],
++    overrides: ["Gallery", "Glimpse", "SnapdragonGallery"],
+     preprocessed: true,
+     presigned: true,
+-    product_specific: true,
+ }
