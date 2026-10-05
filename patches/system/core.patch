@@ -142,17 +142,17 @@ index aec2688fc8387d1166be7e6a6e24e4a536337c03..f3a70cd8151be623fc708c09488c24b0
      if (auto result = epoll.Open(); !result.ok()) {
          PLOG(FATAL) << result.error();
 diff --git a/init/property_service.cpp b/init/property_service.cpp
-index 40eed44906756d1d51d29f8ce6bc40b91b3305a3..1fafe226f25646a7f02138d86cc109dc86bc6641 100644
+index 83c02e41faddaf8878a82b193186ac4d3c664e27..0fbe38c54127f6e9169a2e978e5ce5bf2444b263 100644
 --- a/init/property_service.cpp
 +++ b/init/property_service.cpp
-@@ -1237,7 +1237,6 @@ static void SetSafetyNetProps() {
+@@ -1207,7 +1207,6 @@ static void SetSafetyNetProps() {
          {"oplusboot.verifiedbootstate", "green"},
          {"sys.oem_unlock_allowed", "0"},
          {"ro.oem_unlock_supported", "0"},
 -        {"ro.crypto.state", "encrypted"},
-         {"ro.boot.flash.locked", "1"},
          {"ro.is_ever_orange", "0"},
          {"ro.secureboot.devicelock", "1"},
+         {"ro.secureboot.lockstate", "locked"}
 diff --git a/libkeyutils/Android.bp b/libkeyutils/Android.bp
 new file mode 100644
 index 0000000000000000000000000000000000000000..858c18beebe4b076432f46d0006a0a6702557b93
