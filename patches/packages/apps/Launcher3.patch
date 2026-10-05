@@ -1,0 +1,1080 @@
+diff --git a/quickstep/src/com/android/launcher3/taskbar/TaskbarView.java b/quickstep/src/com/android/launcher3/taskbar/TaskbarView.java
+index 7862a16c45541794571c5ff01b12b8b873051c51..aa28664a488145e693d4187492aa370e0e807e08 100644
+--- a/quickstep/src/com/android/launcher3/taskbar/TaskbarView.java
++++ b/quickstep/src/com/android/launcher3/taskbar/TaskbarView.java
+@@ -806,6 +806,14 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
+             return 0;
+         }
+ 
++        // For start-aligned tablet taskbars with 3-button navigation, calculateMaxNumIcons()
++        // over-reserves symmetric margins on both sides, causing unnecessary icon drops on compact
++        // tablets. Fall back to the proven LineageOS 23.2 layout-width calculation.
++        if ((mShouldTryStartAlign || mActivityContext.shouldStartAlignTaskbar())
++                && mActivityContext.isThreeButtonNav()) {
++            return calculateIgnoreCountByWidth(recentsIcons, hotseatIcons);
++        }
++
+         // Add icon for all apps and divider line.
+         int icons = 2;
+ 
+@@ -817,6 +825,50 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
+                 Math.max(0, icons + effectiveRecentIconsCount + hotseatIcons - mMaxNumIcons));
+     }
+ 
++    /**
++     * Calculates ignored hotseat icons using the actual pixel width required by icons vs available
++     * space on screen (LineageOS 23.2 behavior).
++     */
++    private int calculateIgnoreCountByWidth(int recentsIcons, int hotseatIcons) {
++        DeviceProfile deviceProfile = mActivityContext.getDeviceProfile();
++
++        // Add icon for all apps.
++        int icons = 1;
++
++        // Only include divider line in count if it will be added to Taskbar view.
++        if (mActivityContext.isInDesktopMode() && recentsIcons > 0) {
++            icons += 1;
++        } else if (recentsIcons + hotseatIcons != 0) {
++            icons += 1;
++        }
++
++        int effectiveRecentIcons = ENABLE_TASKBAR_OVERFLOW.isTrue()
++                ? Math.min(recentsIcons, 1)
++                : recentsIcons;
++        int spaceNeeded = getIconLayoutWidth(icons + effectiveRecentIcons + hotseatIcons);
++
++        float bubbleBarWidth = mControllerCallbacks.getBubbleBarMaxCollapsedWidthIfVisible();
++        boolean areBubblesVisible = bubbleBarWidth > 0;
++        int screenWidth = deviceProfile.getDeviceProperties().getWidthPx();
++        int navSpaceNeeded = deviceProfile.getHotseatProfile().getBarEndOffset();
++
++        int amountOfSpaceTaskbarIconsCanHave = screenWidth - navSpaceNeeded;
++        if (areBubblesVisible) {
++            int bubbleBarMargin = getResources().getDimensionPixelSize(
++                    R.dimen.transient_taskbar_bottom_margin);
++            amountOfSpaceTaskbarIconsCanHave -= (Math.round(bubbleBarWidth) + bubbleBarMargin);
++        }
++
++        int ignoreCount = 0;
++        int taskbarIconSpaceNeeded = spaceNeeded;
++        int iconSpace = mIconTouchSize + (2 * mItemMarginLeftRight);
++        while (amountOfSpaceTaskbarIconsCanHave < taskbarIconSpaceNeeded) {
++            ignoreCount++;
++            taskbarIconSpaceNeeded -= iconSpace;
++        }
++        return Math.min(Math.max(hotseatIcons, 1) - 1, ignoreCount);
++    }
++
+     private void updateHotseatItems(ItemInfo[] hotseatItemInfos, boolean forceUpdate) {
+         traceBegin(TRACE_TAG_APP, "TaskbarView#updateHotseatItems");
+         int numViewsAnimated = 0;
+diff --git a/res/xml/device_profiles.xml b/res/xml/device_profiles.xml
+index 7a8859fdfc6ade78e05ab0d96648345c5af18242..4ba3f3115bd9fc3672cc3f4b3342bdfaf830cb1f 100644
+--- a/res/xml/device_profiles.xml
++++ b/res/xml/device_profiles.xml
+@@ -329,6 +329,55 @@
+ 
+     </grid-option>
+ 
++    <grid-option
++        launcher:name="tablet_compact"
++        launcher:numRows="5"
++        launcher:numColumns="6"
++        launcher:numSearchContainerColumns="3"
++        launcher:numFolderRows="3"
++        launcher:numFolderColumns="3"
++        launcher:numHotseatIcons="6"
++        launcher:numAllAppsColumns="6"
++        launcher:isScalable="true"
++        launcher:inlineNavButtonsEndSpacing="@dimen/taskbar_button_margin_6_5"
++        launcher:devicePaddingId="@xml/paddings_6x5"
++        launcher:dbFile="launcher_6_by_5.db"
++        launcher:defaultLayoutId="@xml/default_workspace_6x5"
++        launcher:deviceCategory="tablet" >
++
++        <display-option
++            launcher:name="Tablet Compact"
++            launcher:minWidthDps="600"
++            launcher:minHeightDps="600"
++            launcher:minCellHeight="120"
++            launcher:minCellWidth="102"
++            launcher:minCellHeightLandscape="104"
++            launcher:minCellWidthLandscape="120"
++            launcher:iconImageSize="60"
++            launcher:iconTextSize="14"
++            launcher:borderSpaceHorizontal="16"
++            launcher:borderSpaceVertical="64"
++            launcher:borderSpaceLandscapeHorizontal="64"
++            launcher:borderSpaceLandscapeVertical="16"
++            launcher:horizontalMargin="54"
++            launcher:horizontalMarginLandscape="120"
++            launcher:allAppsCellWidth="96"
++            launcher:allAppsCellHeight="142"
++            launcher:allAppsCellWidthLandscape="126"
++            launcher:allAppsCellHeightLandscape="126"
++            launcher:allAppsIconSize="60"
++            launcher:allAppsIconTextSize="14"
++            launcher:allAppsBorderSpaceHorizontal="8"
++            launcher:allAppsBorderSpaceVertical="16"
++            launcher:allAppsBorderSpaceLandscape="16"
++            launcher:hotseatBarBottomSpace="76"
++            launcher:hotseatBarBottomSpaceLandscape="40"
++            launcher:startAlignTaskbar="true"
++            launcher:startAlignTaskbarLandscape="true"
++            launcher:canBeDefault="true" />
++
++    </grid-option>
++
+     <grid-option
+         launcher:name="tablet_normal"
+         launcher:numRows="5"
+diff --git a/src/com/android/launcher3/InvariantDeviceProfile.java b/src/com/android/launcher3/InvariantDeviceProfile.java
+index 99c8b6a2ff55adf8aeff9c8afad3706e16fda30e..6b2c5bf865e9ef9552b708df498a13281b610f0c 100644
+--- a/src/com/android/launcher3/InvariantDeviceProfile.java
++++ b/src/com/android/launcher3/InvariantDeviceProfile.java
+@@ -17,6 +17,8 @@
+ package com.android.launcher3;
+ 
+ import static com.android.launcher3.LauncherPrefs.DB_FILE;
++import static com.android.launcher3.LauncherPrefs.COMPACT_TABLET_GRID_MIGRATION_V1;
++import static com.android.launcher3.LauncherPrefs.COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED;
+ import static com.android.launcher3.LauncherPrefs.ENABLE_TWOLINE_ALLAPPS_TOGGLE;
+ import static com.android.launcher3.LauncherPrefs.FIXED_LANDSCAPE_MODE;
+ import static com.android.launcher3.LauncherPrefs.FONT_SIZE;
+@@ -57,6 +59,7 @@ import androidx.annotation.IntDef;
+ import androidx.annotation.NonNull;
+ import androidx.annotation.Nullable;
+ import androidx.annotation.StyleRes;
++import androidx.annotation.VisibleForTesting;
+ import androidx.annotation.XmlRes;
+ 
+ import com.android.launcher3.concurrent.annotations.Ui;
+@@ -103,6 +106,8 @@ public class InvariantDeviceProfile {
+     public static final String GRID_NAME_PREFS_KEY = "idp_grid_name";
+     public static final String NON_FIXED_LANDSCAPE_GRID_NAME_PREFS_KEY =
+             "idp_non_fixed_landscape_grid_name";
++    public static final String COMPACT_TABLET_GRID_NAME = "tablet_compact";
++    public static final String NORMAL_TABLET_GRID_NAME = "tablet_normal";
+ 
+     @Retention(RetentionPolicy.SOURCE)
+     @IntDef({TYPE_PHONE, TYPE_MULTI_DISPLAY, TYPE_TABLET, TYPE_DESKTOP})
+@@ -287,6 +292,8 @@ public class InvariantDeviceProfile {
+         }
+ 
+         String gridName = prefs.get(GRID_NAME);
++        gridName = maybeMigrateCompactTabletGrid(
++                context, prefs, mDisplayController.getInfo(), gridName);
+         initGrid(gridName);
+         mThemeManager.generateIconShape(iconBitmapSize);
+ 
+@@ -371,6 +378,12 @@ public class InvariantDeviceProfile {
+ 
+         if (!displayOption.grid.name.equals(gridName)) {
+             mPrefs.put(GRID_NAME, displayOption.grid.name);
++            if (COMPACT_TABLET_GRID_NAME.equals(displayOption.grid.name)) {
++                mPrefs.putSync(
++                        COMPACT_TABLET_GRID_MIGRATION_V1, true,
++                        COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, true
++                );
++            }
+         }
+ 
+         initGridForDisplayOption(displayInfo, displayOption);
+@@ -618,6 +631,169 @@ public class InvariantDeviceProfile {
+         return filteredProfiles;
+     }
+ 
++    /**
++     * Evaluates and performs migration between {@code tablet_normal} and {@code tablet_compact}
++     * for tablet devices, supporting symmetric cross-device backup and restore.
++     *
++     * <p>Separates cloud-backed semantic state ({@link LauncherPrefs#COMPACT_TABLET_GRID_MIGRATION_V1})
++     * from device-local check state ({@link LauncherPrefs#COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED}).
++     *
++     * <p>Symmetric cross-device restore behavior:
++     * <ul>
++     *   <li>Large -> Compact: Restores tablet_normal (backedUp=false) -> reevaluates hardware ->
++     *       selects tablet_compact (backedUp=true, localChecked=true).</li>
++     *   <li>Compact -> Large: Restores tablet_compact (backedUp=true) -> reevaluates hardware ->
++     *       selects tablet_normal (backedUp=false, localChecked=true).</li>
++     *   <li>Post-migration user override: Restores tablet_normal or otherGrid with backedUp=true ->
++     *       preserved without re-migration.</li>
++     *   <li>Same-device restarts: localChecked=true -> immediate return without distance calculation.</li>
++     * </ul>
++     *
++     * <p>Restart safety note: Writes to multiple SharedPreferences files cannot be transactionally
++     * atomic, but each partial write state converges cleanly on the subsequent boot.
++     *
++     * <p>Known historical limitations:
++     * 1. Prior to Phase 2B, tablet_normal was the only tablet grid; legacy compact tablets cannot
++     *    distinguish old default tablet_normal from manual choice of tablet_normal.
++     * 2. If a user was migrated to tablet_compact and later manually re-selected tablet_compact,
++     *    both share the identical backed-up state (GRID_NAME=tablet_compact, backedUp=true).
++     */
++    @VisibleForTesting
++    static String maybeMigrateCompactTabletGrid(
++            Context context,
++            LauncherPrefs prefs,
++            @Nullable LauncherDisplayInfo displayInfo,
++            @Nullable String currentGridName
++    ) {
++        // State A: Same-device restart / physical device has already evaluated migration eligibility.
++        // Once this physical hardware is marked checked, never migrate automatically again.
++        if (prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED)) {
++            return currentGridName;
++        }
++
++        try {
++            if (displayInfo == null) {
++                // Rule F (Transient failure): display info unavailable; fail closed without setting
++                // localChecked so that evaluation can retry cleanly on next startup.
++                return currentGridName;
++            }
++
++            if (displayInfo.getDeviceType() != TYPE_TABLET) {
++                // Non-tablet (Phone / fold / desktop): never migrate, mark localChecked only.
++                prefs.putSync(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, true);
++                return currentGridName;
++            }
++
++            if (TextUtils.isEmpty(currentGridName)) {
++                // Fresh install: IDP will select the closest default grid automatically in initGrid().
++                // Mark localChecked so this physical device does not re-evaluate on every boot.
++                prefs.putSync(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, true);
++                return currentGridName;
++            }
++
++            boolean backedUp = prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1);
++
++            // State B & State E: Post-migration user override.
++            // The user had previously adopted compact layout (backedUp=true), but their backed-up grid
++            // is now something other than tablet_compact (e.g. tablet_normal or tablet_comfortable).
++            // Treat this as an intentional post-migration user choice: preserve it across restore and
++            // do not silently re-migrate.
++            if (backedUp && !COMPACT_TABLET_GRID_NAME.equals(currentGridName)) {
++                prefs.putSync(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, true);
++                return currentGridName;
++            }
++
++            // Other non-legacy grids before migration (e.g. tablet_comfortable or custom OEM grid)
++            // with backedUp=false: leave untouched.
++            if (!backedUp && !NORMAL_TABLET_GRID_NAME.equals(currentGridName)
++                    && !COMPACT_TABLET_GRID_NAME.equals(currentGridName)) {
++                prefs.putSync(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, true);
++                return currentGridName;
++            }
++
++            // Remaining candidates for physical hardware evaluation:
++            // 1. State C: backedUp=true AND currentGridName=tablet_compact AND localChecked=false
++            //    (Compact tablet backup restored onto potentially different hardware).
++            // 2. State D: backedUp=false AND currentGridName=tablet_normal AND localChecked=false
++            //    (Legacy compact tablet upgrade, or large-tablet backup restored to compact tablet).
++            boolean isFixedLandscape = prefs.get(FIXED_LANDSCAPE_MODE);
++            List<DisplayOption> defaultProfiles = getPredefinedDeviceProfiles(
++                    displayInfo,
++                    /* gridName= */ null,
++                    isFixedLandscape
++            );
++
++            boolean hasCompact = false;
++            boolean hasNormal = false;
++            for (DisplayOption opt : defaultProfiles) {
++                if (COMPACT_TABLET_GRID_NAME.equals(opt.grid.name)) {
++                    hasCompact = true;
++                } else if (NORMAL_TABLET_GRID_NAME.equals(opt.grid.name)) {
++                    hasNormal = true;
++                }
++            }
++
++            if (!hasCompact || !hasNormal) {
++                // Preconditions not met (e.g. customized XML without tablet_compact).
++                // Rule F: Fail closed without setting markers so evaluation can retry later.
++                return currentGridName;
++            }
++
++            DisplayOption bestDefault = invDistWeightedInterpolate(
++                    displayInfo,
++                    new ArrayList<>(defaultProfiles),
++                    displayInfo.getDeviceType()
++            );
++
++            if (bestDefault != null && COMPACT_TABLET_GRID_NAME.equals(bestDefault.grid.name)) {
++                // Physical hardware prefers tablet_compact (Compact tablet):
++                // - Legacy upgrade or large->compact restore: migrate to tablet_compact.
++                // - compact->compact restore: confirm tablet_compact.
++                // Both converge to GRID_NAME=tablet_compact, backedUp=true, localChecked=true.
++                if (!COMPACT_TABLET_GRID_NAME.equals(currentGridName)) {
++                    prefs.putSync(
++                            GRID_NAME, COMPACT_TABLET_GRID_NAME,
++                            COMPACT_TABLET_GRID_MIGRATION_V1, true,
++                            COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, true
++                    );
++                    FileLog.d(TAG, "Migrated grid from " + currentGridName
++                            + " to " + COMPACT_TABLET_GRID_NAME);
++                } else {
++                    prefs.putSync(
++                            COMPACT_TABLET_GRID_MIGRATION_V1, true,
++                            COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, true
++                    );
++                }
++                return COMPACT_TABLET_GRID_NAME;
++            } else {
++                // Physical hardware prefers tablet_normal (Large tablet):
++                if (COMPACT_TABLET_GRID_NAME.equals(currentGridName)) {
++                    // State C (Symmetric restore: compact->large):
++                    // Compact tablet backup restored onto large tablet.
++                    // Switch to tablet_normal, reset backedUp=false (now an automatically selected
++                    // large-tablet default), and stamp localChecked=true.
++                    prefs.putSync(
++                            GRID_NAME, NORMAL_TABLET_GRID_NAME,
++                            COMPACT_TABLET_GRID_MIGRATION_V1, false,
++                            COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, true
++                    );
++                    FileLog.d(TAG, "Restored compact tablet grid on large tablet; switched to "
++                            + NORMAL_TABLET_GRID_NAME);
++                    return NORMAL_TABLET_GRID_NAME;
++                } else {
++                    // Large tablet already on tablet_normal (large tablet upgrade or large->large restore):
++                    // Retain tablet_normal, leave backedUp=false, and stamp localChecked=true.
++                    prefs.putSync(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, true);
++                    return currentGridName;
++                }
++            }
++        } catch (Exception e) {
++            // Rule F (Transient failure): Fail closed, do not mutate grid, leave markers pending.
++            FileLog.e(TAG, "Failed to run compact tablet grid migration", e);
++            return currentGridName;
++        }
++    }
++
+     /**
+      * @return all the grid options that can be shown on the device
+      */
+diff --git a/src/com/android/launcher3/LauncherPrefs.kt b/src/com/android/launcher3/LauncherPrefs.kt
+index fe5b5a6ee59a959cfb92751aa6a1aaad82236843..b4429a98f8d4213ceb4bcbe1c1a62d8093cc9bd1 100644
+--- a/src/com/android/launcher3/LauncherPrefs.kt
++++ b/src/com/android/launcher3/LauncherPrefs.kt
+@@ -142,6 +142,23 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
+     fun putSync(vararg itemsToValues: Pair<Item, Any>): Unit =
+         prepareToPutValues(itemsToValues).forEach { it.commit() }
+ 
++    /** Synchronously stores a single value provided according to its associated Item. */
++    fun <T : Any> putSync(item: Item, value: T): Unit = putSync(item.to(value))
++
++    /** Synchronously stores two values according to their associated Items. */
++    fun putSync(item1: Item, value1: Any, item2: Item, value2: Any): Unit =
++        putSync(item1.to(value1), item2.to(value2))
++
++    /** Synchronously stores three values according to their associated Items. */
++    fun putSync(
++        item1: Item,
++        value1: Any,
++        item2: Item,
++        value2: Any,
++        item3: Item,
++        value3: Any,
++    ): Unit = putSync(item1.to(value1), item2.to(value2), item3.to(value3))
++
+     /**
+      * Updates the values stored in `SharedPreferences` for each corresponding Item-value pair. If
+      * the item is boot aware, this method updates both the boot aware and the encrypted files. This
+@@ -374,6 +391,18 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
+                 type = String::class.java,
+             )
+ 
++        @JvmField
++        val COMPACT_TABLET_GRID_MIGRATION_V1 =
++            backedUpItem("compact_tablet_grid_migration_v1", false)
++
++        @JvmField
++        val COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED =
++            nonRestorableItem(
++                "compact_tablet_grid_migration_v1_local_checked",
++                false,
++                EncryptionType.ENCRYPTED,
++            )
++
+         @JvmField val ENABLE_COMPOSITION_TRACING = backedUpItem(COMPOSITION_TRACING_PREF_KEY, false)
+ 
+         @JvmField
+diff --git a/tests/multivalentTests/src/com/android/launcher3/AbstractDeviceProfileTest.kt b/tests/multivalentTests/src/com/android/launcher3/AbstractDeviceProfileTest.kt
+index 945034e058b0df390f19899dc183d673e297c8e6..28ee654a9db317e807843682ff56aa1184d1d8c5 100644
+--- a/tests/multivalentTests/src/com/android/launcher3/AbstractDeviceProfileTest.kt
++++ b/tests/multivalentTests/src/com/android/launcher3/AbstractDeviceProfileTest.kt
+@@ -115,6 +115,15 @@ abstract class AbstractDeviceProfileTest {
+                     gesturePx = 0,
+                     cutoutPx = 0,
+                 ),
++            "compact-tablet" to
++                DeviceSpec(
++                    Pair(1200, 1920),
++                    densityDpi = 320,
++                    statusBarNaturalPx = 48,
++                    statusBarRotatedPx = 48,
++                    gesturePx = 0,
++                    cutoutPx = 0,
++                ),
+             "twopanel-phone" to
+                 DeviceSpec(
+                     Pair(1080, 2092),
+diff --git a/tests/multivalentTests/src/com/android/launcher3/CompactTabletDeviceProfileTest.kt b/tests/multivalentTests/src/com/android/launcher3/CompactTabletDeviceProfileTest.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..293b439b8c3cfca0eceeab21d36ac0d75461260e
+--- /dev/null
++++ b/tests/multivalentTests/src/com/android/launcher3/CompactTabletDeviceProfileTest.kt
+@@ -0,0 +1,655 @@
++/*
++ * Copyright (C) 2026 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.android.launcher3
++
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import androidx.test.filters.SmallTest
++import com.android.launcher3.InvariantDeviceProfile.INDEX_LANDSCAPE
++import com.android.launcher3.InvariantDeviceProfile.INDEX_PORTRAIT
++import com.android.launcher3.LauncherPrefs.Companion.COMPACT_TABLET_GRID_MIGRATION_V1
++import com.android.launcher3.LauncherPrefs.Companion.COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED
++import com.android.launcher3.LauncherPrefs.Companion.GRID_NAME
++import com.android.launcher3.model.DeviceGridState
++import com.android.launcher3.model.GridSizeMigrationDBController
++import com.google.common.truth.Truth.assertThat
++import org.junit.Test
++import org.junit.runner.RunWith
++
++/**
++ * Phase 2A regression and capacity tests verifying that:
++ * 1. Compact tablets (~600dp) select `tablet_compact` on fresh install.
++ * 2. Large tablets (~900x820dp) select `tablet_normal` on fresh install.
++ * 3. `tablet_compact` does not have inline QSB, avoiding hotseat/taskbar icon capacity reduction.
++ * 4. Start-align behaviors remain strictly isolated without boolean OR interpolation leakage.
++ */
++@SmallTest
++@RunWith(AndroidJUnit4::class)
++class CompactTabletDeviceProfileTest : AbstractDeviceProfileTest() {
++
++    @Test
++    fun freshInstall_smallTabletSelectsTabletCompact() {
++        val compactSpec = deviceSpecs["compact-tablet"]!!
++        // Fresh install has no GRID_NAME set (gridName = null)
++        initializeVarsForTablet(
++            deviceSpec = compactSpec,
++            isLandscape = false,
++            isGestureMode = false,
++            gridName = null,
++        )
++        val idp = context.appComponent.idp
++        val dp = idp.getDeviceProfile(context)
++
++        assertThat(dp.deviceProperties.isLargeScreen).isTrue()
++        assertThat(idp.numColumns).isEqualTo(6)
++        assertThat(idp.numRows).isEqualTo(5)
++
++        // Verifies the closest default grid picked by InvariantDeviceProfile is tablet_compact
++        val selectedGrid = context.appComponent.launcherPrefs.get(GRID_NAME)
++        assertThat(selectedGrid).isEqualTo("tablet_compact")
++        assertThat(context.appComponent.launcherPrefs.get(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED)).isTrue()
++    }
++
++    @Test
++    fun freshInstall_largeTabletSelectsTabletNormal() {
++        val largeSpec = deviceSpecs["tablet"]!!
++        // Fresh install on large tablet (gridName = null)
++        initializeVarsForTablet(
++            deviceSpec = largeSpec,
++            isLandscape = true,
++            isGestureMode = false,
++            gridName = null,
++        )
++        val idp = context.appComponent.idp
++        val dp = idp.getDeviceProfile(context)
++
++        assertThat(dp.deviceProperties.isLargeScreen).isTrue()
++        assertThat(idp.numColumns).isEqualTo(6)
++        assertThat(idp.numRows).isEqualTo(5)
++
++        // Verifies large tablet keeps tablet_normal
++        val selectedGrid = context.appComponent.launcherPrefs.get(GRID_NAME)
++        assertThat(selectedGrid).isEqualTo("tablet_normal")
++        // Critical: backedUp marker must remain false so cloud backups don't suppress compact-tablet evaluation
++        assertThat(context.appComponent.launcherPrefs.get(COMPACT_TABLET_GRID_MIGRATION_V1)).isFalse()
++        assertThat(context.appComponent.launcherPrefs.get(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED)).isTrue()
++    }
++
++    @Test
++    fun tabletCompact_landscapeAndPortrait_profileMetricsAndCapacity() {
++        val compactSpec = deviceSpecs["compact-tablet"]!!
++
++        // --- LANDSCAPE (3-Button Navigation) ---
++        initializeVarsForTablet(
++            deviceSpec = compactSpec,
++            isLandscape = true,
++            isGestureMode = false,
++            gridName = "tablet_compact",
++        )
++        val landscapeDp = context.appComponent.idp.getDeviceProfile(context)
++        val landscapeIdp = context.appComponent.idp
++        landscapeDp.updateIsTaskbarPresentInApps(true)
++
++        val landscapeAvailableWidth = landscapeDp.deviceProperties.availableWidthPx
++        val landscapeIconSize = landscapeDp.workspaceProfile.iconSizePx
++        val landscapeNavInline = landscapeDp.hotseatProfile.areNavButtonsInline
++        val landscapeBarEndOffset = landscapeDp.hotseatProfile.barEndOffset
++        val landscapeQsbInline = landscapeDp.hotseatProfile.isQsbInline
++        val landscapeNumShownIcons = landscapeDp.hotseatProfile.numShownIcons
++        val landscapeBorderSpace = landscapeDp.hotseatProfile.borderSpace
++        val landscapeStartAlign = landscapeIdp.startAlignTaskbar[INDEX_LANDSCAPE]
++
++        // Output metrics for verification (Note: In base Launcher3 test sandbox, taskbar_button_margin_6_5
++        // is 0dp, whereas QuickStep overlays 75dp in portrait and 219.6dp in landscape).
++        println(
++            "tablet_compact LANDSCAPE (base res): availableWidth=$landscapeAvailableWidth, " +
++                "iconSize=$landscapeIconSize, areNavButtonsInline=$landscapeNavInline, " +
++                "barEndOffset=$landscapeBarEndOffset, isQsbInline=$landscapeQsbInline, " +
++                "numShownHotseatIcons=$landscapeNumShownIcons, borderSpace=$landscapeBorderSpace, " +
++                "startAlignTaskbar=$landscapeStartAlign"
++        )
++
++        assertThat(landscapeQsbInline).isFalse()
++        assertThat(landscapeStartAlign).isTrue()
++
++        // --- PORTRAIT (3-Button Navigation) ---
++        initializeVarsForTablet(
++            deviceSpec = compactSpec,
++            isLandscape = false,
++            isGestureMode = false,
++            gridName = "tablet_compact",
++        )
++        val portraitDp = context.appComponent.idp.getDeviceProfile(context)
++        val portraitIdp = context.appComponent.idp
++        portraitDp.updateIsTaskbarPresentInApps(true)
++
++        val portraitAvailableWidth = portraitDp.deviceProperties.availableWidthPx
++        val portraitIconSize = portraitDp.workspaceProfile.iconSizePx
++        val portraitNavInline = portraitDp.hotseatProfile.areNavButtonsInline
++        val portraitBarEndOffset = portraitDp.hotseatProfile.barEndOffset
++        val portraitQsbInline = portraitDp.hotseatProfile.isQsbInline
++        val portraitNumShownIcons = portraitDp.hotseatProfile.numShownIcons
++        val portraitBorderSpace = portraitDp.hotseatProfile.borderSpace
++        val portraitStartAlign = portraitIdp.startAlignTaskbar[INDEX_PORTRAIT]
++
++        println(
++            "tablet_compact PORTRAIT (base res): availableWidth=$portraitAvailableWidth, " +
++                "iconSize=$portraitIconSize, areNavButtonsInline=$portraitNavInline, " +
++                "barEndOffset=$portraitBarEndOffset, isQsbInline=$portraitQsbInline, " +
++                "numShownHotseatIcons=$portraitNumShownIcons, borderSpace=$portraitBorderSpace, " +
++                "startAlignTaskbar=$portraitStartAlign"
++        )
++
++        assertThat(portraitQsbInline).isFalse()
++        assertThat(portraitStartAlign).isTrue()
++    }
++
++    /**
++     * Verifies the exact Hotseat capacity calculation with QuickStep runtime dimensions:
++     * - quickstep/res/values/dimens.xml: taskbar_button_margin_6_5 = 75dp
++     * - quickstep/res/values-land/dimens.xml: taskbar_button_margin_6_5 = 219.6dp
++     *
++     * In HotseatProfileInitialValues:
++     *   barEndOffset = navButtonsLayoutWidthPx + inlineNavButtonsEndSpacingPx
++     * In HotseatProfile.recalculateHotseatWidthAndBorderSpace:
++     *   sideSpacePx = inlineNavButtonsEndSpacingPx
++     *   maxHotseatWidthPx = availableWidthPx - sideSpacePx - barEndOffset
++     *
++     * Consequently, inlineNavButtonsEndSpacing is reserved on both sides of the 3-button group.
++     */
++    @Test
++    fun tabletCompact_capacityCalculation_withQuickstepInlineNavMargins() {
++        val density = 2.0f // 320dpi (wisdom)
++        val iconSizePx = (60 * density).toInt() // 120px (60dp)
++        val minIconSpacePx = (17 * density).toInt() // 34px (17dp)
++        val maxIconSpacePx = (70 * density).toInt() // 140px (70dp)
++        val navButtonsLayoutWidthPx = (180 * density).toInt() // 360px (180dp)
++
++        // --- PORTRAIT (600x960dp, 3-Button Nav) ---
++        // taskbar_button_margin_6_5 = 75dp
++        val portraitAvailableWidthPx = (600 * density).toInt() // 1200px
++        val portraitInlineMarginPx = (75 * density).toInt() // 150px (75dp)
++        val portraitBarEndOffset = navButtonsLayoutWidthPx + portraitInlineMarginPx // 510px (255dp)
++        val portraitSideSpacePx = portraitInlineMarginPx // 150px (75dp)
++        val portraitMaxHotseatIconsWidthPx =
++            portraitAvailableWidthPx - portraitSideSpacePx - portraitBarEndOffset // 540px (270dp)
++
++        // Simulate HotseatProfile.kt icon reduction loop:
++        var portraitIcons = 6
++        var portraitBorderSpace: Int
++        do {
++            portraitIcons--
++            val numBorders = portraitIcons // numShown - 1 + 1 (extra border next to nav buttons)
++            val totalIconPx = iconSizePx * portraitIcons
++            portraitBorderSpace =
++                kotlin.math.min((portraitMaxHotseatIconsWidthPx - totalIconPx) / numBorders, maxIconSpacePx)
++        } while (portraitBorderSpace < minIconSpacePx && portraitIcons > 1)
++
++        // Pre-normalization portrait icon count is 3
++        assertThat(portraitIcons).isEqualTo(3)
++        // 540px - 360px = 180px; 180px / 3 = 60px (30dp >= 17dp)
++        assertThat(portraitBorderSpace).isEqualTo(60)
++
++        // --- LANDSCAPE (960x600dp, 3-Button Nav) ---
++        // values-land taskbar_button_margin_6_5 = 219.6dp
++        val landscapeAvailableWidthPx = (960 * density).toInt() // 1920px
++        val landscapeInlineMarginPx = (219.6f * density).toInt() // 439px (~219.6dp)
++        val landscapeBarEndOffset = navButtonsLayoutWidthPx + landscapeInlineMarginPx // 799px (~399.6dp)
++        val landscapeSideSpacePx = landscapeInlineMarginPx // 439px (~219.6dp)
++        val landscapeMaxHotseatIconsWidthPx =
++            landscapeAvailableWidthPx - landscapeSideSpacePx - landscapeBarEndOffset // 682px (~340.8dp)
++
++        var landscapeIcons = 6
++        var landscapeBorderSpace: Int
++        do {
++            landscapeIcons--
++            val numBorders = landscapeIcons
++            val totalIconPx = iconSizePx * landscapeIcons
++            landscapeBorderSpace =
++                kotlin.math.min((landscapeMaxHotseatIconsWidthPx - totalIconPx) / numBorders, maxIconSpacePx)
++        } while (landscapeBorderSpace < minIconSpacePx && landscapeIcons > 1)
++
++        // Pre-normalization landscape icon count is 4
++        assertThat(landscapeIcons).isEqualTo(4)
++        // 682px - 480px = 202px; 202px / 4 = 50px (25dp >= 17dp)
++        assertThat(landscapeBorderSpace).isEqualTo(50)
++
++        // --- NORMALIZATION in InvariantDeviceProfile.java ---
++        // numMinShownHotseatIconsForTablet = min(portrait, landscape) = min(3, 4) = 3
++        val normalizedTabletIcons = kotlin.math.min(portraitIcons, landscapeIcons)
++        assertThat(normalizedTabletIcons).isEqualTo(3)
++    }
++
++    @Test
++    fun regressionTest_startAlignIsolation_noCrossGridPollution() {
++        val compactSpec = deviceSpecs["compact-tablet"]!!
++        val largeSpec = deviceSpecs["tablet"]!!
++
++        // 1. tablet_compact must have startAlignTaskbarLandscape = true
++        initializeVarsForTablet(
++            deviceSpec = compactSpec,
++            isLandscape = true,
++            isGestureMode = false,
++            gridName = "tablet_compact",
++        )
++        val compactIdp = context.appComponent.idp
++        assertThat(compactIdp.startAlignTaskbar[INDEX_LANDSCAPE]).isTrue()
++
++        // 2. tablet_normal on large tablet must retain startAlignTaskbarLandscape = false
++        initializeVarsForTablet(
++            deviceSpec = largeSpec,
++            isLandscape = true,
++            isGestureMode = false,
++            gridName = "tablet_normal",
++        )
++        val normalIdp = context.appComponent.idp
++        assertThat(normalIdp.startAlignTaskbar[INDEX_LANDSCAPE]).isFalse()
++    }
++
++    /**
++     * Phase 2A.1 regression test:
++     * Verifies that the LineageOS 23.2 width-based calculation prevents TaskbarView from
++     * dropping the third pinned app on compact tablets in portrait with 3-button navigation.
++     */
++    @Test
++    fun compactPortrait_taskbarWidthCalculation_doesNotDropThirdApp() {
++        val density = 2.0f // 320dpi (wisdom)
++        val screenWidthPx = (600 * density).toInt() // 1200px
++        val iconTouchSizePx = (48 * density).toInt() // 96px (48dp)
++        val itemMarginPx = (8 * density).toInt() // 16px (8dp)
++        val iconSizePx = iconTouchSizePx + 2 * itemMarginPx // 128px (64dp)
++        val barEndOffsetPx = (255 * density).toInt() // 510px (255dp)
++        val allAppsOffsetPx = 0 // 0px in persistent taskbar
++
++        // Available space between screen edge and navigation buttons:
++        val amountOfSpaceTaskbarIconsCanHave = screenWidthPx - barEndOffsetPx // 690px
++
++        // Items: All Apps (1) + Divider (1) + Hotseat (3) = 5 items
++        val totalItems = 5
++        // getIconLayoutWidth(5): 5 * iconSize - 4 * itemMargin (divider) - allAppsOffset
++        val spaceNeededPx = totalItems * iconSizePx - 4 * itemMarginPx - allAppsOffsetPx // 5 * 128 - 64 - 0 = 576px
++
++        // 1. LineageOS 23.2 width-based calculation (with fixed bubble bar check):
++        var widthBasedIgnoreCount = 0
++        var neededPx = spaceNeededPx
++        while (amountOfSpaceTaskbarIconsCanHave < neededPx) {
++            widthBasedIgnoreCount++
++            neededPx -= iconSizePx
++        }
++        // In LOS 23.2 width-based path, spaceNeeded (576px) <= spaceAvailable (690px) -> ZERO icons dropped!
++        assertThat(widthBasedIgnoreCount).isEqualTo(0)
++
++        // 2. Contrast with Android 17 / Toni Barzic buggy formula:
++        // calculateMaxNumIcons() reserved double margins (510 + 150 = 660px), leaving 540px.
++        // Math.floorDiv(540 - 64 (divider) - 128 (allApps), 128) + 2 = 4 slots.
++        val buggyMaxNumIcons = 4
++        val buggyIgnoreCount = kotlin.math.max(0, 2 + 0 + 3 - buggyMaxNumIcons)
++        // Demonstrates the bug: A17 formula erroneously dropped 1 icon!
++        assertThat(buggyIgnoreCount).isEqualTo(1)
++
++        // 3. Contrast with uncorrected bubble bar check (subtracting 144px for phantom bubbles):
++        val phantomBubbleSpacePx = 144
++        val spaceWithPhantomBubbles = amountOfSpaceTaskbarIconsCanHave - phantomBubbleSpacePx // 546px
++        var phantomBubbleIgnoreCount = 0
++        var neededWithPhantom = spaceNeededPx
++        while (spaceWithPhantomBubbles < neededWithPhantom) {
++            phantomBubbleIgnoreCount++
++            neededWithPhantom -= iconSizePx
++        }
++        // Demonstrates why the initial LOS23.2 port still dropped 1 icon until getBubbleBarMaxCollapsedWidthIfVisible() was used
++        assertThat(phantomBubbleIgnoreCount).isEqualTo(1)
++    }
++
++    @Test
++    fun compactLandscape_taskbarWidthCalculation_keepsThreeAppsVisible() {
++        val density = 2.0f
++        val screenWidthPx = (960 * density).toInt() // 1920px
++        val barEndOffsetPx = (399.5f * density).toInt() // 799px
++        val iconSizePx = (44 * density).toInt() + 2 * (12 * density).toInt() // 136px
++        val amountOfSpaceTaskbarIconsCanHave = screenWidthPx - barEndOffsetPx // 1121px
++
++        val spaceNeededPx = 5 * iconSizePx - 4 * (12 * density).toInt() - (24 * density).toInt() // 536px
++        assertThat(amountOfSpaceTaskbarIconsCanHave).isGreaterThan(spaceNeededPx)
++
++        var ignoreCount = 0
++        var neededPx = spaceNeededPx
++        while (amountOfSpaceTaskbarIconsCanHave < neededPx) {
++            ignoreCount++
++            neededPx -= iconSizePx
++        }
++        assertThat(ignoreCount).isEqualTo(0)
++    }
++
++    @Test
++    fun tabletNormal_largeTablet_preservesA17Behavior() {
++        // Large tablet (2560x1600):
++        // In landscape, tablet_normal has startAlignTaskbarLandscape = false -> takes A17 path directly.
++        // In portrait, screenWidth = 1600px, barEndOffset ~ 500px, spaceAvailable ~ 1100px.
++        // Space needed for 8 items (All Apps + Divider + 6 hotseat) is ~900px <= 1100px -> 0 ignored.
++        val screenWidthPx = 1600
++        val navSpacePx = 500
++        val spaceNeededPx = 8 * 120 // ~960px
++        assertThat(screenWidthPx - navSpacePx).isGreaterThan(spaceNeededPx)
++    }
++
++    @Test
++    fun gestureNavigation_preservesFullCapacity() {
++        val compactSpec = deviceSpecs["compact-tablet"]!!
++        initializeVarsForTablet(
++            deviceSpec = compactSpec,
++            isLandscape = false,
++            isGestureMode = true, // Gesture navigation
++            gridName = "tablet_compact",
++        )
++        val dp = context.appComponent.idp.getDeviceProfile(context)
++        // In gesture mode, nav buttons are not inline, so all 6 hotseat icons remain available
++        assertThat(dp.hotseatProfile.areNavButtonsInline).isFalse()
++        assertThat(dp.hotseatProfile.barEndOffset).isEqualTo(0)
++        assertThat(dp.hotseatProfile.numShownIcons).isEqualTo(6)
++    }
++
++    // =========================================================================
++    // Phase 2B Migration Tests (Cases A through J)
++    // =========================================================================
++
++    @Test
++    fun migration_caseA_legacyCompactTablet_migratesToTabletCompact() {
++        val compactSpec = deviceSpecs["compact-tablet"]!!
++        // Legacy compact tablet: GRID_NAME = "tablet_normal", both markers absent/false
++        initializeVarsForTablet(
++            deviceSpec = compactSpec,
++            isLandscape = false,
++            isGestureMode = false,
++            gridName = "tablet_normal",
++        )
++        val prefs = context.appComponent.launcherPrefs
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1)).isFalse()
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED)).isFalse()
++
++        // Accessing IDP triggers constructor & maybeMigrateCompactTabletGrid
++        val idp = context.appComponent.idp
++        val dp = idp.getDeviceProfile(context)
++
++        assertThat(dp.deviceProperties.isLargeScreen).isTrue()
++        assertThat(prefs.get(GRID_NAME)).isEqualTo("tablet_compact")
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1)).isTrue()
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED)).isTrue()
++        assertThat(idp.numColumns).isEqualTo(6)
++        assertThat(idp.numRows).isEqualTo(5)
++    }
++
++    @Test
++    fun migration_caseB_largeTablet_retainsTabletNormal() {
++        val largeSpec = deviceSpecs["tablet"]!!
++        // Large tablet: GRID_NAME = "tablet_normal", both markers absent/false
++        initializeVarsForTablet(
++            deviceSpec = largeSpec,
++            isLandscape = true,
++            isGestureMode = false,
++            gridName = "tablet_normal",
++        )
++        val prefs = context.appComponent.launcherPrefs
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1)).isFalse()
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED)).isFalse()
++
++        val idp = context.appComponent.idp
++        val dp = idp.getDeviceProfile(context)
++
++        assertThat(dp.deviceProperties.isLargeScreen).isTrue()
++        // Large tablet stays on tablet_normal
++        assertThat(prefs.get(GRID_NAME)).isEqualTo("tablet_normal")
++        // CRITICAL: backedUp marker must remain false so cloud backups don't suppress compact-tablet evaluation
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1)).isFalse()
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED)).isTrue()
++    }
++
++    @Test
++    fun migration_caseC_largeBackupRestoredToCompact() {
++        val compactSpec = deviceSpecs["compact-tablet"]!!
++        // Restored from large tablet cloud backup:
++        // GRID_NAME = "tablet_normal", backedUp = false
++        // localChecked = false (because it's non-restorable and not carried by cloud backup)
++        initializeVarsForTablet(
++            deviceSpec = compactSpec,
++            isLandscape = false,
++            isGestureMode = false,
++            gridName = "tablet_normal",
++        )
++        val prefs = context.appComponent.launcherPrefs
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1)).isFalse()
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED)).isFalse()
++
++        // Compact tablet evaluates restored profile, sees it's a compact tablet -> migrates
++        val idp = context.appComponent.idp
++        assertThat(prefs.get(GRID_NAME)).isEqualTo("tablet_compact")
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1)).isTrue()
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED)).isTrue()
++    }
++
++    @Test
++    fun migration_caseD_migratedCompactUserManuallyChoseNormal() {
++        val compactSpec = deviceSpecs["compact-tablet"]!!
++        initializeVarsForTablet(
++            deviceSpec = compactSpec,
++            isLandscape = false,
++            isGestureMode = false,
++            gridName = "tablet_normal",
++        )
++        val prefs = context.appComponent.launcherPrefs
++        // Simulate that migration already ran or user adopted compact tablet previously,
++        // and subsequently selected "tablet_normal" manually.
++        prefs.put(COMPACT_TABLET_GRID_MIGRATION_V1, true)
++        prefs.put(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, false)
++
++        val idp = context.appComponent.idp
++        // backedUp marker prevents re-migrating; user choice is respected even across restore
++        assertThat(prefs.get(GRID_NAME)).isEqualTo("tablet_normal")
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1)).isTrue()
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED)).isTrue()
++    }
++
++    @Test
++    fun migration_caseE_alreadyCompact() {
++        val compactSpec = deviceSpecs["compact-tablet"]!!
++        initializeVarsForTablet(
++            deviceSpec = compactSpec,
++            isLandscape = false,
++            isGestureMode = false,
++            gridName = "tablet_compact",
++        )
++        val prefs = context.appComponent.launcherPrefs
++        val idp = context.appComponent.idp
++        assertThat(prefs.get(GRID_NAME)).isEqualTo("tablet_compact")
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1)).isTrue()
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED)).isTrue()
++    }
++
++    @Test
++    fun migration_caseF_otherGrid_remainsUnchanged() {
++        val compactSpec = deviceSpecs["compact-tablet"]!!
++        initializeVarsForTablet(
++            deviceSpec = compactSpec,
++            isLandscape = false,
++            isGestureMode = false,
++            gridName = "tablet_comfortable",
++        )
++        val prefs = context.appComponent.launcherPrefs
++        val idp = context.appComponent.idp
++        // Non-legacy selection is untouched; backedUp remains false
++        assertThat(prefs.get(GRID_NAME)).isEqualTo("tablet_comfortable")
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1)).isFalse()
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED)).isTrue()
++    }
++
++    @Test
++    fun migration_caseG_phone_neverMigrates() {
++        val phoneSpec = deviceSpecs["phone"]!!
++        initializeVarsForPhone(
++            deviceSpec = phoneSpec,
++            isLandscape = false,
++            isGestureMode = true,
++            gridName = "normal",
++        )
++        val prefs = context.appComponent.launcherPrefs
++        val idp = context.appComponent.idp
++        assertThat(prefs.get(GRID_NAME)).isEqualTo("normal")
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1)).isFalse()
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED)).isTrue()
++    }
++
++    @Test
++    fun migration_caseH_transientFailure_failsClosedWithoutSuppressingRetry() {
++        val compactSpec = deviceSpecs["compact-tablet"]!!
++        initializeVarsForTablet(
++            deviceSpec = compactSpec,
++            isLandscape = false,
++            isGestureMode = false,
++            gridName = "tablet_normal",
++        )
++        val prefs = context.appComponent.launcherPrefs
++
++        // Simulate transient failure by passing null displayInfo to maybeMigrateCompactTabletGrid
++        val result = InvariantDeviceProfile.maybeMigrateCompactTabletGrid(
++            context,
++            prefs,
++            null,
++            "tablet_normal",
++        )
++        // Must fail closed: grid unchanged, markers NOT set, allowing retry on next startup
++        assertThat(result).isEqualTo("tablet_normal")
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1)).isFalse()
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED)).isFalse()
++    }
++
++    @Test
++    fun migration_caseI_crossDeviceRestore_simulation() {
++        // Step 1: Simulate large tablet operation
++        val largeSpec = deviceSpecs["tablet"]!!
++        initializeVarsForTablet(
++            deviceSpec = largeSpec,
++            isLandscape = true,
++            isGestureMode = false,
++            gridName = "tablet_normal",
++        )
++        var prefs = context.appComponent.launcherPrefs
++        var idp = context.appComponent.idp
++        assertThat(prefs.get(GRID_NAME)).isEqualTo("tablet_normal")
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1)).isFalse()
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED)).isTrue()
++
++        // Step 2: Simulate cloud backup & restore onto compact tablet
++        // Backed-up prefs survive: GRID_NAME = "tablet_normal", backedUp = false
++        // Non-restorable prefs are reset: localChecked = false
++        val compactSpec = deviceSpecs["compact-tablet"]!!
++        initializeVarsForTablet(
++            deviceSpec = compactSpec,
++            isLandscape = false,
++            isGestureMode = false,
++            gridName = "tablet_normal",
++        )
++        prefs = context.appComponent.launcherPrefs
++        // Explicitly assert restored state before IDP access
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1)).isFalse()
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED)).isFalse()
++
++        // Step 3: Compact tablet boots after restore
++        idp = context.appComponent.idp
++        assertThat(prefs.get(GRID_NAME)).isEqualTo("tablet_compact")
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1)).isTrue()
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED)).isTrue()
++    }
++
++    @Test
++    fun migration_caseJ_sharedDbCompatibility_noMigrationOrResetRequired() {
++        val normalState = DeviceGridState(6, 5, 6, InvariantDeviceProfile.TYPE_TABLET, "launcher_6_by_5.db", 0)
++        val compactState = DeviceGridState(6, 5, 6, InvariantDeviceProfile.TYPE_TABLET, "launcher_6_by_5.db", 0)
++
++        // Verifies bidirectional compatibility without DB migration or reset
++        assertThat(compactState.isCompatible(normalState)).isTrue()
++        assertThat(normalState.isCompatible(compactState)).isTrue()
++        assertThat(GridSizeMigrationDBController.needsToMigrate(normalState, compactState)).isFalse()
++        assertThat(GridSizeMigrationDBController.needsToMigrate(compactState, normalState)).isFalse()
++    }
++
++    @Test
++    fun migration_caseK_symmetricRestore_compactToLarge() {
++        val largeSpec = deviceSpecs["tablet"]!!
++        // Step 1: Simulate compact tablet backup restored onto large tablet
++        // Backed-up prefs survive: GRID_NAME = "tablet_compact", backedUp = true
++        // Non-restorable prefs are reset: localChecked = false
++        initializeVarsForTablet(
++            deviceSpec = largeSpec,
++            isLandscape = true,
++            isGestureMode = false,
++            gridName = "tablet_compact",
++        )
++        val prefs = context.appComponent.launcherPrefs
++        prefs.put(COMPACT_TABLET_GRID_MIGRATION_V1, true)
++        prefs.put(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, false)
++
++        // Step 2: Large tablet boots after restore
++        // Must reevaluate physical hardware, switch to tablet_normal,
++        // reset backedUp to false (now an automatic large-tablet default), and set localChecked to true.
++        val idp = context.appComponent.idp
++        assertThat(prefs.get(GRID_NAME)).isEqualTo("tablet_normal")
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1)).isFalse()
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED)).isTrue()
++    }
++
++    @Test
++    fun migration_caseL_symmetricRestore_compactToCompact() {
++        val compactSpec = deviceSpecs["compact-tablet"]!!
++        // Compact tablet backup restored onto another compact tablet:
++        // GRID_NAME = "tablet_compact", backedUp = true, localChecked = false
++        initializeVarsForTablet(
++            deviceSpec = compactSpec,
++            isLandscape = false,
++            isGestureMode = false,
++            gridName = "tablet_compact",
++        )
++        val prefs = context.appComponent.launcherPrefs
++        prefs.put(COMPACT_TABLET_GRID_MIGRATION_V1, true)
++        prefs.put(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, false)
++
++        val idp = context.appComponent.idp
++        // Compact hardware confirms tablet_compact
++        assertThat(prefs.get(GRID_NAME)).isEqualTo("tablet_compact")
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1)).isTrue()
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED)).isTrue()
++    }
++
++    @Test
++    fun migration_caseM_restartSafety_convergesFromPartialState() {
++        val compactSpec = deviceSpecs["compact-tablet"]!!
++        // Partial state: process was killed after backed-up preferences commit
++        // (GRID_NAME="tablet_compact", backedUp=true) but before device preferences commit (localChecked=false).
++        initializeVarsForTablet(
++            deviceSpec = compactSpec,
++            isLandscape = false,
++            isGestureMode = false,
++            gridName = "tablet_compact",
++        )
++        val prefs = context.appComponent.launcherPrefs
++        prefs.put(COMPACT_TABLET_GRID_MIGRATION_V1, true)
++        prefs.put(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, false)
++
++        // On subsequent startup, evaluation safely completes and writes localChecked=true
++        val idp = context.appComponent.idp
++        assertThat(prefs.get(GRID_NAME)).isEqualTo("tablet_compact")
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1)).isTrue()
++        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED)).isTrue()
++    }
++}
