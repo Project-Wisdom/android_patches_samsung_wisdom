@@ -39,8 +39,8 @@
       "upstream": "https://github.com/DerpFest-AOSP/android_frameworks_base",
       "base_commit": "8f68d5e69a9a2b1e72cb70e49a5711756171a374",
       "patch": "patches/frameworks/base.patch",
-      "sha256": "21af9646cc366e69dfd3bd7caafc77d3402b966b1f1d22a1547bc3bba662fa65",
-      "files": 1
+      "sha256": "3f173da1c02237f663fc4a2c5401606758b5b0886415c7b545b4651042bccafc",
+      "files": 3
     },
     {
       "project": "frameworks/native",

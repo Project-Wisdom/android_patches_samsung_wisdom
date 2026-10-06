@@ -1,5 +1,5 @@
 diff --git a/cmds/bootanimation/BootAnimation.cpp b/cmds/bootanimation/BootAnimation.cpp
-index bf1863e83d43aa078ccec7b39a81536c2077c636..352841c0415d6adde66abe138603e1518f02b735 100644
+index bf1863e83d43..352841c0415d 100644
 --- a/cmds/bootanimation/BootAnimation.cpp
 +++ b/cmds/bootanimation/BootAnimation.cpp
 @@ -76,6 +76,7 @@ static const char OEM_BOOTANIMATION_FILE[] = "/oem/media/bootanimation.zip";
@@ -24,3 +24,49 @@ index bf1863e83d43aa078ccec7b39a81536c2077c636..352841c0415d6adde66abe138603e151
      };
      static const std::vector<std::string> shutdownFiles = {
          PRODUCT_SHUTDOWNANIMATION_FILE, OEM_SHUTDOWNANIMATION_FILE, SYSTEM_SHUTDOWNANIMATION_FILE, ""
+diff --git a/packages/SystemUI/compose/features/src/com/android/systemui/qs/ui/composable/QuickSettingsScene.kt b/packages/SystemUI/compose/features/src/com/android/systemui/qs/ui/composable/QuickSettingsScene.kt
+index 38855b2bae43..2b9bcc301b04 100644
+--- a/packages/SystemUI/compose/features/src/com/android/systemui/qs/ui/composable/QuickSettingsScene.kt
++++ b/packages/SystemUI/compose/features/src/com/android/systemui/qs/ui/composable/QuickSettingsScene.kt
+@@ -225,8 +225,7 @@ private fun ContentScope.QuickSettingsScene(
+     val animatedBlurRadiusPx: Float by
+         animateFloatAsState(targetValue = targetBlur, label = "QS-blurRadius")
+     val onlyPunchHolesInThisScene =
+-        layoutState.isTransitioningBetween(Scenes.Gone, Scenes.QuickSettings) ||
+-            layoutState.isTransitioningBetween(Scenes.Lockscreen, Scenes.QuickSettings)
++        layoutState.isTransitioningBetween(Scenes.Lockscreen, Scenes.QuickSettings)
+     Box(
+         modifier
+             .fillMaxSize()
+@@ -343,7 +342,7 @@ private fun ContentScope.QuickSettingsScene(
+                 viewModel = notificationsPlaceholderViewModel,
+                 notificationRulesParentViewModel = notificationRulesParentViewModel,
+                 jankMonitor = jankMonitor,
+-                shouldPunchHoleBehindScrim = true,
++                shouldPunchHoleBehindScrim = onlyPunchHolesInThisScene,
+                 shouldFillMaxHeight = true,
+                 isTransparencyEnabled = viewModel.isTransparencyEnabled,
+                 stackTopPadding = dimensionResource(id = R.dimen.notification_side_paddings_single),
+diff --git a/packages/SystemUI/compose/features/src/com/android/systemui/shade/ui/composable/ShadeScene.kt b/packages/SystemUI/compose/features/src/com/android/systemui/shade/ui/composable/ShadeScene.kt
+index 0a42c6f51eb0..b32a1bbebad1 100644
+--- a/packages/SystemUI/compose/features/src/com/android/systemui/shade/ui/composable/ShadeScene.kt
++++ b/packages/SystemUI/compose/features/src/com/android/systemui/shade/ui/composable/ShadeScene.kt
+@@ -313,8 +313,7 @@ private fun ContentScope.SingleShade(
+     LaunchedEffectWithLifecycle(Unit) { viewModel.detectShadeModeChanges() }
+ 
+     val onlyPunchHolesInThisScene =
+-        layoutState.isTransitioningBetween(Scenes.Gone, Scenes.Shade) ||
+-            layoutState.isTransitioningBetween(Scenes.Lockscreen, Scenes.Shade)
++        layoutState.isTransitioningBetween(Scenes.Lockscreen, Scenes.Shade)
+     val mediaInRow = viewModel.showMediaInRow
+     val notificationStackPadding = dimensionResource(id = R.dimen.notification_side_paddings_single)
+ 
+@@ -502,7 +501,7 @@ private fun ContentScope.SingleShade(
+                     stackScrollView = notificationStackScrollView,
+                     viewModel = notificationsPlaceholderViewModel,
+                     notificationRulesParentViewModel = notificationRulesParentViewModel,
+-                    shouldPunchHoleBehindScrim = true,
++                    shouldPunchHoleBehindScrim = onlyPunchHolesInThisScene,
+                     shouldContentFillMaxSize = true,
+                     shouldScrimBackgroundFillMaxHeight = true,
+                     isTransparencyEnabled = viewModel.isTransparencyEnabled,
