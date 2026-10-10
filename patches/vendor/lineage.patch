@@ -143,7 +143,7 @@ index cd13f082a08c3fd2573a2e014aab6e6baad85b2b..441e41f53b8ba54cfad57cc4ca1760f1
  
  
 diff --git a/build/tasks/kernel.mk b/build/tasks/kernel.mk
-index 723e4090c48583d3807508074b4bdaf3766be798..fada61b16f01bb2e2ef79b7530699b366107574e 100644
+index 15ce95b74109c88f58055b1a6a6ce754577f5b05..39fb09d37f028545e6e4e54f8292c06390c3968e 100644
 --- a/build/tasks/kernel.mk
 +++ b/build/tasks/kernel.mk
 @@ -385,10 +385,10 @@ ifneq ($(filter $(FULL_KERNEL_BUILD),true)$(TARGET_KERNEL_PLATFORM_TARGET),)

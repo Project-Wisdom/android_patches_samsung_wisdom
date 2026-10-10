@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "source": "DerpFest 17 / wisdom; manifest 04cf624; 2026-10-05",
+  "source": "DerpFest 17 / wisdom; manifest 04cf624; 2026-10-08 sync",
   "patches": [
     {
       "project": "bootable/recovery",
@@ -27,20 +27,28 @@
       "files": 2
     },
     {
+      "project": "external/chromium-webview/patches",
+      "upstream": "https://github.com/LineageOS/android_external_chromium-webview_patches",
+      "base_commit": "c90965b7fc332c0f0fcb115dfcbfbda5fcc6381b",
+      "patch": "patches/external/chromium-webview/patches.patch",
+      "sha256": "86596a17d2e51c272979cefc9ed53da5d40891c1c19716e83659796e0fbd7e89",
+      "files": 1
+    },
+    {
       "project": "frameworks/av",
       "upstream": "https://github.com/DerpFest-AOSP/android_frameworks_av",
-      "base_commit": "ca64eb9a82f3b7d39139b6ac6be950cfafe5336a",
+      "base_commit": "ab97ffe45965b1e54299ed1d077e0724b7880ee1",
       "patch": "patches/frameworks/av.patch",
-      "sha256": "63defc812913f11d88a9177677a9664bcc0101e86cc93eefc4449c550418db7c",
+      "sha256": "5a63c190be7c1e86232d7e1f00505906e670407ddadfa64f6aaad1ab4bcb75c7",
       "files": 3
     },
     {
       "project": "frameworks/base",
       "upstream": "https://github.com/DerpFest-AOSP/android_frameworks_base",
-      "base_commit": "8f68d5e69a9a2b1e72cb70e49a5711756171a374",
+      "base_commit": "409b7e58b663b7039ce53b029e6becb355adc01a",
       "patch": "patches/frameworks/base.patch",
-      "sha256": "3f173da1c02237f663fc4a2c5401606758b5b0886415c7b545b4651042bccafc",
-      "files": 3
+      "sha256": "d532c9f9c41ca3fb17d4a086c481d3262a5cc2bd4e7b9bc9fde486c1138b6fd3",
+      "files": 4
     },
     {
       "project": "frameworks/native",
@@ -93,7 +101,7 @@
     {
       "project": "packages/modules/Bluetooth",
       "upstream": "https://github.com/DerpFest-AOSP/android_packages_modules_Bluetooth",
-      "base_commit": "fe6c836203f8441e237b3e18318253198a960e52",
+      "base_commit": "6eae705efbf516c8923d41735d5b641b001a2633",
       "patch": "patches/packages/modules/Bluetooth.patch",
       "sha256": "e3888c4c74e1106cc3b6e4833dbb8c0125045fcc40f16ce755313857749bef45",
       "files": 1
@@ -109,9 +117,9 @@
     {
       "project": "system/core",
       "upstream": "https://github.com/DerpFest-AOSP/android_system_core",
-      "base_commit": "34f26482b2aec12d266f003daa366b270895bb99",
+      "base_commit": "e9a87f5a080a01b3ba6ea4fcd9c87d076c0a38bf",
       "patch": "patches/system/core.patch",
-      "sha256": "b7cc444f2bb41b1d5b81e57e4bc2600f085daeef87bdc44269c31e0f9e223ad8",
+      "sha256": "cd4589442a5301d03fe5d69e6d3b668d8055008d68a912fc04008494ae0c5862",
       "files": 11
     },
     {
@@ -133,9 +141,9 @@
     {
       "project": "vendor/lineage",
       "upstream": "https://github.com/DerpFest-AOSP/android_vendor_derpfest",
-      "base_commit": "9d4b93f3302c92384346a9a3d04f6cbb8b0452f5",
+      "base_commit": "87155b1db117a05ff9a5a07c6c5cd4100fd14ab8",
       "patch": "patches/vendor/lineage.patch",
-      "sha256": "0215201a9d540effbe59201532b1fa2bc003e43c7824e3221d00af9935a926eb",
+      "sha256": "f00f7fe2829267bef9a8eca10d45b7bf8cf700a68106afda5cf9c08487905066",
       "files": 7
     },
     {

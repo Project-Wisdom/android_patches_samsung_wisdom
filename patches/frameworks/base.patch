@@ -1,5 +1,5 @@
 diff --git a/cmds/bootanimation/BootAnimation.cpp b/cmds/bootanimation/BootAnimation.cpp
-index bf1863e83d43..352841c0415d 100644
+index bf1863e83d43aa078ccec7b39a81536c2077c636..352841c0415d6adde66abe138603e1518f02b735 100644
 --- a/cmds/bootanimation/BootAnimation.cpp
 +++ b/cmds/bootanimation/BootAnimation.cpp
 @@ -76,6 +76,7 @@ static const char OEM_BOOTANIMATION_FILE[] = "/oem/media/bootanimation.zip";
@@ -24,8 +24,120 @@ index bf1863e83d43..352841c0415d 100644
      };
      static const std::vector<std::string> shutdownFiles = {
          PRODUCT_SHUTDOWNANIMATION_FILE, OEM_SHUTDOWNANIMATION_FILE, SYSTEM_SHUTDOWNANIMATION_FILE, ""
+diff --git a/packages/SystemUI/compose/features/src/com/android/systemui/notifications/ui/composable/Notifications.kt b/packages/SystemUI/compose/features/src/com/android/systemui/notifications/ui/composable/Notifications.kt
+index b302da3e65bdf29ee7b2cd250dc40ce160ba406c..af50e38eceb8460cc4e6c1f3ba835da1aa1add51 100644
+--- a/packages/SystemUI/compose/features/src/com/android/systemui/notifications/ui/composable/Notifications.kt
++++ b/packages/SystemUI/compose/features/src/com/android/systemui/notifications/ui/composable/Notifications.kt
+@@ -63,6 +63,7 @@ import androidx.compose.ui.geometry.Offset
+ import androidx.compose.ui.geometry.Rect
+ import androidx.compose.ui.graphics.BlendMode
+ import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.drawOutline
+ import androidx.compose.ui.graphics.graphicsLayer
+ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+ import androidx.compose.ui.input.nestedscroll.NestedScrollDispatcher
+@@ -641,38 +642,73 @@ fun ContentScope.NestedScrollingNotificationPanel(
+                             )
+                         }
+                         .onUnplaced { viewModel.onScrimBoundsChanged(null) }
+-                        .graphicsLayer {
+-                            shape =
+-                                calculateCornerRadius(
+-                                        scrimCornerRadius,
+-                                        screenCornerRadius,
+-                                        { expansionFraction },
++                        .then(
++                            if (
++                                shouldDrawScrimBackground && !shouldPunchHoleBehindScrim &&
++                                    android.os.SystemProperties.get("ro.product.device") == "wisdom"
++                            ) {
++                                // This Box has no children. Draw its one colored shape directly
++                                // instead of clipping a rectangular background through two layers.
++                                Modifier.drawBehind {
++                                    val transitioning =
+                                         shouldAnimateScrimCornerRadius(
+                                             layoutState,
+                                             shouldPunchHoleBehindScrim,
+                                             viewModel.notificationsShadeContentKey,
+-                                        ),
++                                        )
++                                    val scrimShape =
++                                        calculateCornerRadius(
++                                            scrimCornerRadius,
++                                            screenCornerRadius,
++                                            { expansionFraction },
++                                            transitioning,
++                                        ).let { scrimRounding.value.toRoundedCornerShape(it) }
++                                    val scrimOutline =
++                                        scrimShape.createOutline(size, layoutDirection, this)
++                                    drawOutline(
++                                        scrimOutline,
++                                        color = classicShadeNotificationScrimBgColor,
++                                        alpha =
++                                            (expansionFraction / EXPANSION_FOR_MAX_SCRIM_ALPHA)
++                                                .coerceAtMost(1f),
+                                     )
+-                                    .let { scrimRounding.value.toRoundedCornerShape(it) }
+-                            clip = true
+-                        }
+-                        // The DstOut blend mode is used to punch a transparent hole through
+-                        // the scrim's background, cutting out the QQS tiles. When used in
+-                        // conjunction with CompositingStrategy.Offscreen on the parent,
+-                        // it will only affects content on the current Scene.
+-                        .thenIf(shouldPunchHoleBehindScrim) {
+-                            Modifier.drawBehind {
+-                                drawRect(Color.Black, blendMode = BlendMode.DstOut)
++                                }
++                            } else {
++                                Modifier
++                                    .graphicsLayer {
++                                        shape =
++                                            calculateCornerRadius(
++                                                    scrimCornerRadius,
++                                                    screenCornerRadius,
++                                                    { expansionFraction },
++                                                    shouldAnimateScrimCornerRadius(
++                                                        layoutState,
++                                                        shouldPunchHoleBehindScrim,
++                                                        viewModel.notificationsShadeContentKey,
++                                                    ),
++                                                )
++                                                .let { scrimRounding.value.toRoundedCornerShape(it) }
++                                        clip = true
++                                    }
++                                    // The DstOut blend mode is used to punch a transparent hole through
++                                    // the scrim's background, cutting out the QQS tiles. When used in
++                                    // conjunction with CompositingStrategy.Offscreen on the parent,
++                                    // it will only affects content on the current Scene.
++                                    .thenIf(shouldPunchHoleBehindScrim) {
++                                        Modifier.drawBehind {
++                                            drawRect(Color.Black, blendMode = BlendMode.DstOut)
++                                        }
++                                    }
++                                    .graphicsLayer {
++                                        alpha =
++                                            (expansionFraction / EXPANSION_FOR_MAX_SCRIM_ALPHA).coerceAtMost(1f)
++                                    }
++                                    // The background color that makes the surface behind Notifications.
++                                    .thenIf(shouldDrawScrimBackground) {
++                                        Modifier.background(color = classicShadeNotificationScrimBgColor)
++                                    }
+                             }
+-                        }
+-                        .graphicsLayer {
+-                            alpha =
+-                                (expansionFraction / EXPANSION_FOR_MAX_SCRIM_ALPHA).coerceAtMost(1f)
+-                        }
+-                        // The background color that makes the surface behind Notifications.
+-                        .thenIf(shouldDrawScrimBackground) {
+-                            Modifier.background(color = classicShadeNotificationScrimBgColor)
+-                        }
++                        )
+             )
+         },
+     )
 diff --git a/packages/SystemUI/compose/features/src/com/android/systemui/qs/ui/composable/QuickSettingsScene.kt b/packages/SystemUI/compose/features/src/com/android/systemui/qs/ui/composable/QuickSettingsScene.kt
-index 38855b2bae43..2b9bcc301b04 100644
+index 38855b2bae4397301f9d3f02b61572cf75b64c24..2b9bcc301b047b743c320b2fd8662ce840947aae 100644
 --- a/packages/SystemUI/compose/features/src/com/android/systemui/qs/ui/composable/QuickSettingsScene.kt
 +++ b/packages/SystemUI/compose/features/src/com/android/systemui/qs/ui/composable/QuickSettingsScene.kt
 @@ -225,8 +225,7 @@ private fun ContentScope.QuickSettingsScene(
@@ -48,7 +160,7 @@ index 38855b2bae43..2b9bcc301b04 100644
                  isTransparencyEnabled = viewModel.isTransparencyEnabled,
                  stackTopPadding = dimensionResource(id = R.dimen.notification_side_paddings_single),
 diff --git a/packages/SystemUI/compose/features/src/com/android/systemui/shade/ui/composable/ShadeScene.kt b/packages/SystemUI/compose/features/src/com/android/systemui/shade/ui/composable/ShadeScene.kt
-index 0a42c6f51eb0..b32a1bbebad1 100644
+index 0a42c6f51eb0ff82ffdfa944f51ca9261d41730d..b32a1bbebad1e65e58bc550e9ac274a49cce3bff 100644
 --- a/packages/SystemUI/compose/features/src/com/android/systemui/shade/ui/composable/ShadeScene.kt
 +++ b/packages/SystemUI/compose/features/src/com/android/systemui/shade/ui/composable/ShadeScene.kt
 @@ -313,8 +313,7 @@ private fun ContentScope.SingleShade(

@@ -233,10 +233,10 @@ index e8bdf806ee13b5714d0b0f42b729ab06ff6f3d0b..f094f470dc4c0fee88216b9bb219d94f
  
  int MtpDevHandle::start(bool /* ptp */) {
 diff --git a/services/audiopolicy/managerdefault/AudioPolicyManager.cpp b/services/audiopolicy/managerdefault/AudioPolicyManager.cpp
-index e96584d1d7e56a823fcb840a504e3c389256efdb..ea1be9f9726fab852ed5687e82fda9b2eb2dab4d 100644
+index 2b588eceec2d6b7a644ee5e1d8e8c39a27c3b368..d495c6f49ed1b7ce3ab4841d9de221296cd5f64c 100644
 --- a/services/audiopolicy/managerdefault/AudioPolicyManager.cpp
 +++ b/services/audiopolicy/managerdefault/AudioPolicyManager.cpp
-@@ -7195,11 +7195,13 @@ AudioPolicyManager::AudioPolicyManager(const sp<const AudioPolicyConfig>& config
+@@ -7196,11 +7196,13 @@ AudioPolicyManager::AudioPolicyManager(const sp<const AudioPolicyConfig>& config
  
  status_t AudioPolicyManager::initialize() {
      if (mEngine == nullptr) {
@@ -250,7 +250,7 @@ index e96584d1d7e56a823fcb840a504e3c389256efdb..ea1be9f9726fab852ed5687e82fda9b2
          LOG_FATAL("Policy engine not initialized(err=%d)", status);
          return status;
      }
-@@ -7215,11 +7217,20 @@ status_t AudioPolicyManager::initialize() {
+@@ -7216,11 +7218,20 @@ status_t AudioPolicyManager::initialize() {
      onNewAudioModulesAvailableInt(nullptr /*newDevices*/);
  
      // make sure default device is reachable
@@ -276,7 +276,7 @@ index e96584d1d7e56a823fcb840a504e3c389256efdb..ea1be9f9726fab852ed5687e82fda9b2
          status = NO_INIT;
      }
      ALOGW_IF(mPrimaryOutput == nullptr, "The policy configuration does not declare a primary output");
-@@ -7228,6 +7239,13 @@ status_t AudioPolicyManager::initialize() {
+@@ -7229,6 +7240,13 @@ status_t AudioPolicyManager::initialize() {
      property_set("log.tag." LOG_TAG, "D");
  
      updateDevicesAndOutputs();
