@@ -68,6 +68,26 @@ index 7862a16c45541794571c5ff01b12b8b873051c51..aa28664a488145e693d4187492aa370e
      private void updateHotseatItems(ItemInfo[] hotseatItemInfos, boolean forceUpdate) {
          traceBegin(TRACE_TAG_APP, "TaskbarView#updateHotseatItems");
          int numViewsAnimated = 0;
+diff --git a/quickstep/src/com/android/launcher3/taskbar/TaskbarViewController.java b/quickstep/src/com/android/launcher3/taskbar/TaskbarViewController.java
+index 7d285e6b656b0201375e431fe34a68ede196e869..8035a8e8361fc25814f9d1db037e2c43ae402843 100644
+--- a/quickstep/src/com/android/launcher3/taskbar/TaskbarViewController.java
++++ b/quickstep/src/com/android/launcher3/taskbar/TaskbarViewController.java
+@@ -1388,7 +1388,14 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
+                             ? R.dimen.taskbar_phone_size
+                             : R.dimen.taskbar_stashed_size);
+         } else {
+-            taskbarWindowSize = mActivity.getDefaultTaskbarWindowSize();
++            DeviceProfile taskbarDp = mActivity.getDeviceProfile();
++            int collapsedHeight = mActivity.getDefaultTaskbarWindowSize();
++            int expandedHeight = taskbarDp.getTaskbarProfile().getHeight()
++                    + taskbarDp.getTaskbarOffsetY();
++            // Nav buttons are translated up by taskbarOffsetY to align with the taskbar. Keep
++            // enough window height for that translated content; the default height is too short
++            // on some portrait tablet profiles, clipping all three navigation icons.
++            taskbarWindowSize = Math.max(collapsedHeight, expandedHeight);
+         }
+         if (mBubbleControllers != null) {
+             int bubbleBarMaxHeight = mBubbleControllers.bubbleBarViewController
 diff --git a/res/xml/device_profiles.xml b/res/xml/device_profiles.xml
 index 7a8859fdfc6ade78e05ab0d96648345c5af18242..4ba3f3115bd9fc3672cc3f4b3342bdfaf830cb1f 100644
 --- a/res/xml/device_profiles.xml
@@ -129,7 +149,7 @@ index 7a8859fdfc6ade78e05ab0d96648345c5af18242..4ba3f3115bd9fc3672cc3f4b3342bdfa
          launcher:name="tablet_normal"
          launcher:numRows="5"
 diff --git a/src/com/android/launcher3/InvariantDeviceProfile.java b/src/com/android/launcher3/InvariantDeviceProfile.java
-index 99c8b6a2ff55adf8aeff9c8afad3706e16fda30e..6b2c5bf865e9ef9552b708df498a13281b610f0c 100644
+index 99c8b6a2ff55adf8aeff9c8afad3706e16fda30e..bdd94143cc467eeaf1f04c4bfdc2217f95c45d43 100644
 --- a/src/com/android/launcher3/InvariantDeviceProfile.java
 +++ b/src/com/android/launcher3/InvariantDeviceProfile.java
 @@ -17,6 +17,8 @@
@@ -167,20 +187,30 @@ index 99c8b6a2ff55adf8aeff9c8afad3706e16fda30e..6b2c5bf865e9ef9552b708df498a1328
          initGrid(gridName);
          mThemeManager.generateIconShape(iconBitmapSize);
  
-@@ -371,6 +378,12 @@ public class InvariantDeviceProfile {
+@@ -370,7 +377,21 @@ public class InvariantDeviceProfile {
+                         displayInfo.getDeviceType());
  
          if (!displayOption.grid.name.equals(gridName)) {
-             mPrefs.put(GRID_NAME, displayOption.grid.name);
+-            mPrefs.put(GRID_NAME, displayOption.grid.name);
 +            if (COMPACT_TABLET_GRID_NAME.equals(displayOption.grid.name)) {
-+                mPrefs.putSync(
-+                        COMPACT_TABLET_GRID_MIGRATION_V1, true,
-+                        COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, true
-+                );
++                // Persist cloud-restorable state before the device-local completion marker. If
++                // either shared-preference file fails to commit, the next launch must retry.
++                if (!mPrefs.putSync(
++                        GRID_NAME, displayOption.grid.name,
++                        COMPACT_TABLET_GRID_MIGRATION_V1, true
++                )) {
++                    FileLog.e(TAG, "Failed to persist compact tablet grid selection");
++                } else if (!mPrefs.putSync(
++                        COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, true)) {
++                    FileLog.e(TAG, "Failed to persist compact tablet grid migration check");
++                }
++            } else {
++                mPrefs.put(GRID_NAME, displayOption.grid.name);
 +            }
          }
  
          initGridForDisplayOption(displayInfo, displayOption);
-@@ -618,6 +631,169 @@ public class InvariantDeviceProfile {
+@@ -618,6 +639,188 @@ public class InvariantDeviceProfile {
          return filteredProfiles;
      }
  
@@ -233,14 +263,14 @@ index 99c8b6a2ff55adf8aeff9c8afad3706e16fda30e..6b2c5bf865e9ef9552b708df498a1328
 +
 +            if (displayInfo.getDeviceType() != TYPE_TABLET) {
 +                // Non-tablet (Phone / fold / desktop): never migrate, mark localChecked only.
-+                prefs.putSync(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, true);
++                markCompactTabletGridMigrationChecked(prefs);
 +                return currentGridName;
 +            }
 +
 +            if (TextUtils.isEmpty(currentGridName)) {
-+                // Fresh install: IDP will select the closest default grid automatically in initGrid().
-+                // Mark localChecked so this physical device does not re-evaluate on every boot.
-+                prefs.putSync(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, true);
++                // Fresh install: initGrid() selects and persists the closest default. Leave the
++                // local marker clear until then so a failed GRID_NAME/backup marker commit can be
++                // retried on the next launch.
 +                return currentGridName;
 +            }
 +
@@ -252,7 +282,7 @@ index 99c8b6a2ff55adf8aeff9c8afad3706e16fda30e..6b2c5bf865e9ef9552b708df498a1328
 +            // Treat this as an intentional post-migration user choice: preserve it across restore and
 +            // do not silently re-migrate.
 +            if (backedUp && !COMPACT_TABLET_GRID_NAME.equals(currentGridName)) {
-+                prefs.putSync(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, true);
++                markCompactTabletGridMigrationChecked(prefs);
 +                return currentGridName;
 +            }
 +
@@ -260,7 +290,7 @@ index 99c8b6a2ff55adf8aeff9c8afad3706e16fda30e..6b2c5bf865e9ef9552b708df498a1328
 +            // with backedUp=false: leave untouched.
 +            if (!backedUp && !NORMAL_TABLET_GRID_NAME.equals(currentGridName)
 +                    && !COMPACT_TABLET_GRID_NAME.equals(currentGridName)) {
-+                prefs.putSync(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, true);
++                markCompactTabletGridMigrationChecked(prefs);
 +                return currentGridName;
 +            }
 +
@@ -304,19 +334,18 @@ index 99c8b6a2ff55adf8aeff9c8afad3706e16fda30e..6b2c5bf865e9ef9552b708df498a1328
 +                // - compact->compact restore: confirm tablet_compact.
 +                // Both converge to GRID_NAME=tablet_compact, backedUp=true, localChecked=true.
 +                if (!COMPACT_TABLET_GRID_NAME.equals(currentGridName)) {
-+                    prefs.putSync(
-+                            GRID_NAME, COMPACT_TABLET_GRID_NAME,
-+                            COMPACT_TABLET_GRID_MIGRATION_V1, true,
-+                            COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, true
-+                    );
++                    if (!persistCompactTabletGridMigration(prefs,
++                            COMPACT_TABLET_GRID_NAME, true)) {
++                        return currentGridName;
++                    }
 +                    FileLog.d(TAG, "Migrated grid from " + currentGridName
 +                            + " to " + COMPACT_TABLET_GRID_NAME);
 +                } else {
-+                    prefs.putSync(
-+                            COMPACT_TABLET_GRID_MIGRATION_V1, true,
-+                            COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, true
-+                    );
++                    if (!persistCompactTabletGridMigration(prefs, null, true)) {
++                        return currentGridName;
++                    }
 +                }
++                markCompactTabletGridMigrationChecked(prefs);
 +                return COMPACT_TABLET_GRID_NAME;
 +            } else {
 +                // Physical hardware prefers tablet_normal (Large tablet):
@@ -325,18 +354,18 @@ index 99c8b6a2ff55adf8aeff9c8afad3706e16fda30e..6b2c5bf865e9ef9552b708df498a1328
 +                    // Compact tablet backup restored onto large tablet.
 +                    // Switch to tablet_normal, reset backedUp=false (now an automatically selected
 +                    // large-tablet default), and stamp localChecked=true.
-+                    prefs.putSync(
-+                            GRID_NAME, NORMAL_TABLET_GRID_NAME,
-+                            COMPACT_TABLET_GRID_MIGRATION_V1, false,
-+                            COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, true
-+                    );
++                    if (!persistCompactTabletGridMigration(prefs,
++                            NORMAL_TABLET_GRID_NAME, false)) {
++                        return currentGridName;
++                    }
 +                    FileLog.d(TAG, "Restored compact tablet grid on large tablet; switched to "
 +                            + NORMAL_TABLET_GRID_NAME);
++                    markCompactTabletGridMigrationChecked(prefs);
 +                    return NORMAL_TABLET_GRID_NAME;
 +                } else {
 +                    // Large tablet already on tablet_normal (large tablet upgrade or large->large restore):
 +                    // Retain tablet_normal, leave backedUp=false, and stamp localChecked=true.
-+                    prefs.putSync(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, true);
++                    markCompactTabletGridMigrationChecked(prefs);
 +                    return currentGridName;
 +                }
 +            }
@@ -347,22 +376,68 @@ index 99c8b6a2ff55adf8aeff9c8afad3706e16fda30e..6b2c5bf865e9ef9552b708df498a1328
 +        }
 +    }
 +
++    /** Commits the backed-up part before the device-local marker so failed writes stay retryable. */
++    private static boolean persistCompactTabletGridMigration(
++            LauncherPrefs prefs, @Nullable String gridName, boolean migrated) {
++        boolean committed = gridName == null
++                ? prefs.putSync(COMPACT_TABLET_GRID_MIGRATION_V1, migrated)
++                : prefs.putSync(
++                        GRID_NAME, gridName,
++                        COMPACT_TABLET_GRID_MIGRATION_V1, migrated);
++        if (!committed) {
++            FileLog.e(TAG, "Failed to persist compact tablet grid migration state");
++        }
++        return committed;
++    }
++
++    private static void markCompactTabletGridMigrationChecked(LauncherPrefs prefs) {
++        if (!prefs.putSync(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, true)) {
++            FileLog.e(TAG, "Failed to persist compact tablet grid migration check");
++        }
++    }
++
      /**
       * @return all the grid options that can be shown on the device
       */
+@@ -732,6 +935,14 @@ public class InvariantDeviceProfile {
+         // out = out / combinedWeight
+         out.merge(out, (b1, b2) -> b1, (f1, f2) -> f1 / combinedWeight);
+ 
++        // startAlignTaskbar is a discrete per-grid UX decision (e.g. tablet_compact aligns the
++        // taskbar in landscape while tablet_normal centers it). It must follow the selected
++        // (closest) grid instead of the boolean union accumulated above, otherwise a neighboring
++        // grid's "true" permanently overrides the selected grid's "false" on fresh installs with
++        // an empty GRID_NAME. Other interpolated float properties are unaffected.
++        System.arraycopy(closestPoint.startAlignTaskbar, 0,
++                out.startAlignTaskbar, 0, out.startAlignTaskbar.length);
++
+         // Since the bitmaps are persisted, ensure that all bitmap sizes are not larger than
+         // predefined size to avoid cache invalidation
+         for (int i = 0; i < out.iconSizes.length; i++) {
 diff --git a/src/com/android/launcher3/LauncherPrefs.kt b/src/com/android/launcher3/LauncherPrefs.kt
-index fe5b5a6ee59a959cfb92751aa6a1aaad82236843..b4429a98f8d4213ceb4bcbe1c1a62d8093cc9bd1 100644
+index fe5b5a6ee59a959cfb92751aa6a1aaad82236843..871901fdd8463867be430e4e5bb760936a3bbea0 100644
 --- a/src/com/android/launcher3/LauncherPrefs.kt
 +++ b/src/com/android/launcher3/LauncherPrefs.kt
-@@ -142,6 +142,23 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
-     fun putSync(vararg itemsToValues: Pair<Item, Any>): Unit =
-         prepareToPutValues(itemsToValues).forEach { it.commit() }
- 
+@@ -138,9 +138,31 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
+     /**
+      * Synchronously stores all the values provided according to their associated Item
+      * configuration.
++     *
++     * @return true only if every underlying SharedPreferences file committed successfully. Items
++     *   backed up to the cloud and device-local items live in different files, so a single call
++     *   may perform multiple commits; callers making restart-safety decisions must check this
++     *   instead of assuming persistence.
+      */
+-    fun putSync(vararg itemsToValues: Pair<Item, Any>): Unit =
+-        prepareToPutValues(itemsToValues).forEach { it.commit() }
++    fun putSync(vararg itemsToValues: Pair<Item, Any>): Boolean =
++        prepareToPutValues(itemsToValues).map { it.commit() }.all { it }
++
 +    /** Synchronously stores a single value provided according to its associated Item. */
-+    fun <T : Any> putSync(item: Item, value: T): Unit = putSync(item.to(value))
++    fun <T : Any> putSync(item: Item, value: T): Boolean = putSync(item.to(value))
 +
 +    /** Synchronously stores two values according to their associated Items. */
-+    fun putSync(item1: Item, value1: Any, item2: Item, value2: Any): Unit =
++    fun putSync(item1: Item, value1: Any, item2: Item, value2: Any): Boolean =
 +        putSync(item1.to(value1), item2.to(value2))
 +
 +    /** Synchronously stores three values according to their associated Items. */
@@ -373,12 +448,27 @@ index fe5b5a6ee59a959cfb92751aa6a1aaad82236843..b4429a98f8d4213ceb4bcbe1c1a62d80
 +        value2: Any,
 +        item3: Item,
 +        value3: Any,
-+    ): Unit = putSync(item1.to(value1), item2.to(value2), item3.to(value3))
-+
++    ): Boolean = putSync(item1.to(value1), item2.to(value2), item3.to(value3))
+ 
      /**
       * Updates the values stored in `SharedPreferences` for each corresponding Item-value pair. If
-      * the item is boot aware, this method updates both the boot aware and the encrypted files. This
-@@ -374,6 +391,18 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
+@@ -233,8 +255,13 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
+      */
+     fun remove(vararg items: Item) = prepareToRemove(items).forEach { it.apply() }
+ 
+-    /** Synchronously removes the [Item]'s value from its corresponding `SharedPreferences` file. */
+-    fun removeSync(vararg items: Item) = prepareToRemove(items).forEach { it.commit() }
++    /**
++     * Synchronously removes the [Item]'s value from its corresponding `SharedPreferences` file.
++     *
++     * @return true only if every underlying SharedPreferences file committed successfully.
++     */
++    fun removeSync(vararg items: Item): Boolean =
++        prepareToRemove(items).map { it.commit() }.all { it }
+ 
+     /**
+      * Removes the key value pairs stored in `SharedPreferences` for each corresponding Item. If the
+@@ -374,6 +401,18 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
                  type = String::class.java,
              )
  
@@ -397,6 +487,34 @@ index fe5b5a6ee59a959cfb92751aa6a1aaad82236843..b4429a98f8d4213ceb4bcbe1c1a62d80
          @JvmField val ENABLE_COMPOSITION_TRACING = backedUpItem(COMPOSITION_TRACING_PREF_KEY, false)
  
          @JvmField
+diff --git a/src/com/android/launcher3/provider/RestoreDbTask.kt b/src/com/android/launcher3/provider/RestoreDbTask.kt
+index 46cd370280c8ddaa00dbf8b5182dabba6352028c..6914805dc8f4893e9e62b7c14392349a50e1f98c 100644
+--- a/src/com/android/launcher3/provider/RestoreDbTask.kt
++++ b/src/com/android/launcher3/provider/RestoreDbTask.kt
+@@ -529,11 +529,20 @@ class RestoreDbTask {
+         fun setPending(context: Context) {
+             val deviceGridState = DeviceGridState(context)
+             FileLog.d(TAG, "restore initiated from backup: DeviceGridState=$deviceGridState")
+-            LauncherPrefs.get(context)
+-                .putSync(
++            val prefs = LauncherPrefs.get(context)
++            if (!prefs.putSync(
+                     LauncherPrefs.RESTORE_DEVICE.to(deviceGridState.deviceType),
+                     LauncherPrefs.IS_FIRST_LOAD_AFTER_RESTORE.to(true),
+-                )
++                )) {
++                FileLog.e(TAG, "Failed to persist pending launcher restore state")
++            }
++            // A restore may deliver a GRID_NAME evaluated for different hardware, including onto
++            // an already-initialized device whose local migration check already ran. The
++            // compact-tablet grid migration is skipped while LOCAL_CHECKED is set, so clear it
++            // here to force re-evaluation against the restored values on next launch.
++            if (!prefs.removeSync(LauncherPrefs.COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED)) {
++                FileLog.e(TAG, "Failed to clear compact tablet grid migration check after restore")
++            }
+         }
+ 
+         private fun logDatabaseWidgetInfo(controller: ModelDbController) {
 diff --git a/tests/multivalentTests/src/com/android/launcher3/AbstractDeviceProfileTest.kt b/tests/multivalentTests/src/com/android/launcher3/AbstractDeviceProfileTest.kt
 index 945034e058b0df390f19899dc183d673e297c8e6..28ee654a9db317e807843682ff56aa1184d1d8c5 100644
 --- a/tests/multivalentTests/src/com/android/launcher3/AbstractDeviceProfileTest.kt
@@ -419,10 +537,10 @@ index 945034e058b0df390f19899dc183d673e297c8e6..28ee654a9db317e807843682ff56aa11
                      Pair(1080, 2092),
 diff --git a/tests/multivalentTests/src/com/android/launcher3/CompactTabletDeviceProfileTest.kt b/tests/multivalentTests/src/com/android/launcher3/CompactTabletDeviceProfileTest.kt
 new file mode 100644
-index 0000000000000000000000000000000000000000..293b439b8c3cfca0eceeab21d36ac0d75461260e
+index 0000000000000000000000000000000000000000..38ebe1675db27cc164cd208b282b0d010b5a2b93
 --- /dev/null
 +++ b/tests/multivalentTests/src/com/android/launcher3/CompactTabletDeviceProfileTest.kt
-@@ -0,0 +1,655 @@
+@@ -0,0 +1,736 @@
 +/*
 + * Copyright (C) 2026 The Android Open Source Project
 + *
@@ -441,6 +559,8 @@ index 0000000000000000000000000000000000000000..293b439b8c3cfca0eceeab21d36ac0d7
 +
 +package com.android.launcher3
 +
++import android.content.Context
++import android.content.SharedPreferences
 +import androidx.test.ext.junit.runners.AndroidJUnit4
 +import androidx.test.filters.SmallTest
 +import com.android.launcher3.InvariantDeviceProfile.INDEX_LANDSCAPE
@@ -682,6 +802,69 @@ index 0000000000000000000000000000000000000000..293b439b8c3cfca0eceeab21d36ac0d7
 +        )
 +        val normalIdp = context.appComponent.idp
 +        assertThat(normalIdp.startAlignTaskbar[INDEX_LANDSCAPE]).isFalse()
++    }
++
++    @Test
++    fun migration_doesNotMarkDeviceCheckedWhenBackedUpCommitFails() {
++        val compactSpec = deviceSpecs["compact-tablet"]!!
++        initializeVarsForTablet(
++            deviceSpec = compactSpec,
++            isLandscape = false,
++            isGestureMode = false,
++            gridName = null,
++        )
++        val idp = context.appComponent.idp
++        val regularPrefs = context.appComponent.launcherPrefs
++        regularPrefs.putSync(
++            GRID_NAME, "tablet_normal",
++            COMPACT_TABLET_GRID_MIGRATION_V1, false,
++            COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED, false,
++        )
++
++        val migratedGrid = InvariantDeviceProfile.maybeMigrateCompactTabletGrid(
++            context,
++            FailingBackedUpLauncherPrefsForMigrationTest(context),
++            idp.displayInfo,
++            "tablet_normal",
++        )
++
++        assertThat(migratedGrid).isEqualTo("tablet_normal")
++        assertThat(regularPrefs.get(GRID_NAME)).isEqualTo("tablet_normal")
++        assertThat(regularPrefs.get(COMPACT_TABLET_GRID_MIGRATION_V1)).isFalse()
++        assertThat(regularPrefs.get(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED)).isFalse()
++    }
++
++    /**
++     * Fresh-install (empty GRID_NAME) regression test:
++     * on a large tablet the interpolated default profile selects tablet_normal, and its discrete
++     * startAlignTaskbarLandscape=false must not be polluted by tablet_compact's true via the
++     * boolean union in invDistWeightedInterpolate. Re-initializing explicitly with the selected
++     * grid must yield the identical value (second-init consistency).
++     */
++    @Test
++    fun freshInstall_largeTablet_landscapeStartAlignNotPolluted() {
++        val largeSpec = deviceSpecs["tablet"]!!
++
++        // 1. Fresh install: no GRID_NAME set.
++        initializeVarsForTablet(
++            deviceSpec = largeSpec,
++            isLandscape = true,
++            isGestureMode = false,
++            gridName = null,
++        )
++        val freshIdp = context.appComponent.idp
++        assertThat(context.appComponent.launcherPrefs.get(GRID_NAME)).isEqualTo("tablet_normal")
++        assertThat(freshIdp.startAlignTaskbar[INDEX_LANDSCAPE]).isFalse()
++
++        // 2. Second initialization with the persisted grid must agree.
++        initializeVarsForTablet(
++            deviceSpec = largeSpec,
++            isLandscape = true,
++            isGestureMode = false,
++            gridName = "tablet_normal",
++        )
++        val secondIdp = context.appComponent.idp
++        assertThat(secondIdp.startAlignTaskbar[INDEX_LANDSCAPE]).isFalse()
 +    }
 +
 +    /**
@@ -1078,3 +1261,145 @@ index 0000000000000000000000000000000000000000..293b439b8c3cfca0eceeab21d36ac0d7
 +        assertThat(prefs.get(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED)).isTrue()
 +    }
 +}
++
++private class FailingBackedUpLauncherPrefsForMigrationTest(context: Context) : LauncherPrefs(context) {
++    override fun getSharedPrefs(item: Item): SharedPreferences {
++        val prefs = super.getSharedPrefs(item)
++        return if (item.isBackedUp) {
++            object : SharedPreferences by prefs {
++                override fun edit(): SharedPreferences.Editor =
++                    object : SharedPreferences.Editor by prefs.edit() {
++                        override fun commit() = false
++                    }
++            }
++        } else {
++            prefs
++        }
++    }
++}
+diff --git a/tests/multivalentTests/src/com/android/launcher3/LauncherPrefsTest.kt b/tests/multivalentTests/src/com/android/launcher3/LauncherPrefsTest.kt
+index da9cc8635d640a51c99a44d2b5c99c97e8fec2c4..f3bf9b31e1ac9afbeaab5c3d4d6193fd0e30f24f 100644
+--- a/tests/multivalentTests/src/com/android/launcher3/LauncherPrefsTest.kt
++++ b/tests/multivalentTests/src/com/android/launcher3/LauncherPrefsTest.kt
+@@ -267,4 +267,71 @@ class LauncherPrefsTest {
+         launcherPrefs.removeSync(bootAwareItem)
+         assertThat(bootAwarePrefs.contains(bootAwareItem.sharedPrefKey)).isFalse()
+     }
++
++    @Test
++    fun putSync_mixedBackedUpAndDeviceItems_returnsTrueAndPersistsBoth() {
++        val backedUpItem = LauncherPrefs.backedUpItem("test_putsync_backed", TEST_DEFAULT_VALUE)
++        val deviceItem = LauncherPrefs.nonRestorableItem("test_putsync_device", TEST_DEFAULT_VALUE)
++
++        with(launcherPrefs) {
++            assertThat(putSync(backedUpItem.to("backed"), deviceItem.to("device"))).isTrue()
++            assertThat(get(backedUpItem)).isEqualTo("backed")
++            assertThat(get(deviceItem)).isEqualTo("device")
++            assertThat(removeSync(backedUpItem, deviceItem)).isTrue()
++            assertThat(has(backedUpItem)).isFalse()
++            assertThat(has(deviceItem)).isFalse()
++        }
++    }
++
++    @Test
++    fun putSync_whenCommitFails_returnsFalseAndKeepsRetryableState() {
++        val backing =
++            context.getSharedPreferences("test_putsync_failing", Context.MODE_PRIVATE)
++        backing.edit().clear().commit()
++        val failingPrefs = ProxyPrefs(context, FailingCommitPrefs(backing))
++        val item = LauncherPrefs.nonRestorableItem("test_putsync_failure", TEST_DEFAULT_VALUE)
++
++        // commit() returns false: nothing is persisted and the caller is informed.
++        assertThat(failingPrefs.putSync(item.to("new_value"))).isFalse()
++        assertThat(failingPrefs.get(item)).isEqualTo(TEST_DEFAULT_VALUE)
++
++        // Retrying against healthy storage succeeds, so a failed migration stays retryable.
++        val healthyPrefs = ProxyPrefs(context, backing)
++        assertThat(healthyPrefs.putSync(item.to("new_value"))).isTrue()
++        assertThat(healthyPrefs.get(item)).isEqualTo("new_value")
++        assertThat(healthyPrefs.removeSync(item)).isTrue()
++    }
++
++    @Test
++    fun putSync_whenOnePreferenceFileCommitFails_reportsFailureAndStillCommitsOtherFile() {
++        val backedUpItem = LauncherPrefs.backedUpItem("test_putsync_partial_backed", TEST_DEFAULT_VALUE)
++        val deviceItem = LauncherPrefs.nonRestorableItem("test_putsync_partial_device", TEST_DEFAULT_VALUE)
++        val prefs = FailingBackedUpLauncherPrefs(context)
++
++        assertThat(prefs.putSync(backedUpItem.to("backed"), deviceItem.to("device"))).isFalse()
++        assertThat(prefs.get(backedUpItem)).isEqualTo(TEST_DEFAULT_VALUE)
++        assertThat(prefs.get(deviceItem)).isEqualTo("device")
++
++        // The cloud-backed state failed, so callers must not persist a local completion marker.
++        assertThat(prefs.removeSync(backedUpItem, deviceItem)).isFalse()
++        assertThat(prefs.has(backedUpItem)).isFalse()
++        assertThat(prefs.has(deviceItem)).isFalse()
++    }
++}
++
++/** Delegates to [delegate] but reports every commit as failed without persisting anything. */
++private class FailingCommitPrefs(private val delegate: SharedPreferences) :
++    SharedPreferences by delegate {
++
++    override fun edit(): SharedPreferences.Editor =
++        object : SharedPreferences.Editor by delegate.edit() {
++            override fun commit(): Boolean = false
++        }
++}
++
++private class FailingBackedUpLauncherPrefs(context: Context) : LauncherPrefs(context) {
++    override fun getSharedPrefs(item: Item): SharedPreferences {
++        val prefs = super.getSharedPrefs(item)
++        return if (item.isBackedUp) FailingCommitPrefs(prefs) else prefs
++    }
+ }
+diff --git a/tests/multivalentTests/src/com/android/launcher3/provider/RestoreDbTaskTest.java b/tests/multivalentTests/src/com/android/launcher3/provider/RestoreDbTaskTest.java
+index 6ecc9f0c9a7d7679e060e01444298730344d48e8..c8d78b5f0914458dee32d68d2f949654efe4897b 100644
+--- a/tests/multivalentTests/src/com/android/launcher3/provider/RestoreDbTaskTest.java
++++ b/tests/multivalentTests/src/com/android/launcher3/provider/RestoreDbTaskTest.java
+@@ -18,6 +18,9 @@ package com.android.launcher3.provider;
+ import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
+ 
+ import static com.android.launcher3.LauncherPrefs.APP_WIDGET_IDS;
++import static com.android.launcher3.LauncherPrefs.COMPACT_TABLET_GRID_MIGRATION_V1;
++import static com.android.launcher3.LauncherPrefs.COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED;
++import static com.android.launcher3.LauncherPrefs.GRID_NAME;
+ import static com.android.launcher3.LauncherPrefs.OLD_APP_WIDGET_IDS;
+ import static com.android.launcher3.LauncherPrefs.RESTORE_DEVICE;
+ import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_DESKTOP;
+@@ -49,6 +52,7 @@ import android.os.UserHandle;
+ import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+ 
++import com.android.launcher3.InvariantDeviceProfile;
+ import com.android.launcher3.LauncherAppState;
+ import com.android.launcher3.LauncherPrefs;
+ import com.android.launcher3.LauncherSettings;
+@@ -121,6 +125,27 @@ public class RestoreDbTaskTest {
+         LauncherPrefs.get(mContext).removeSync(RESTORE_DEVICE);
+     }
+ 
++    @Test
++    public void givenInitializedDeviceWithLocalChecked_WhenSetPending_ThenLocalCheckedCleared() {
++        // Given an already-initialized device whose migration check already ran, now receiving
++        // a compact-tablet backup (restored cloud values present, device-local marker stale).
++        mPrefs.putSync(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED.to(true));
++        mPrefs.putSync(
++                GRID_NAME.to(InvariantDeviceProfile.COMPACT_TABLET_GRID_NAME),
++                COMPACT_TABLET_GRID_MIGRATION_V1.to(true));
++
++        // When a restore is initiated.
++        RestoreDbTask.setPending(mContext);
++
++        // Then the local marker is cleared so the next launch re-evaluates the restored grid
++        // against this hardware, while the restored cloud values are preserved.
++        assertThat(mPrefs.get(COMPACT_TABLET_GRID_MIGRATION_V1_LOCAL_CHECKED)).isFalse();
++        assertThat(mPrefs.get(GRID_NAME))
++                .isEqualTo(InvariantDeviceProfile.COMPACT_TABLET_GRID_NAME);
++        assertThat(mPrefs.get(COMPACT_TABLET_GRID_MIGRATION_V1)).isTrue();
++        assertThat(RestoreDbTask.isPending(mContext)).isTrue();
++    }
++
+     @Test
+     @MockUser(userType = UserType.MAIN, userSerial = 23)
+     public void testGetProfileId() throws Exception {

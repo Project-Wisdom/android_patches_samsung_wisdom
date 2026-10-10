@@ -95,8 +95,8 @@
       "upstream": "https://github.com/DerpFest-AOSP/android_packages_apps_DerpLauncher",
       "base_commit": "c54bd173b873aca0c47638ea0239f851b8604947",
       "patch": "patches/packages/apps/Launcher3.patch",
-      "sha256": "7076bb5d7b18a007eadba6be36ce6f0f7a33888ceeeef62a177a32e591a9d285",
-      "files": 6
+      "sha256": "f286eef7f6aaba968f39abfeb2fd14134091e82de782468bdbc256b824d0a233",
+      "files": 10
     },
     {
       "project": "packages/modules/Bluetooth",
