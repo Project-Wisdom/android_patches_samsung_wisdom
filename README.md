@@ -1,7 +1,7 @@
 # Wisdom DerpFest 17 patches
 
 Compatibility patches for Samsung SM-P205 (`wisdom`), based on the
-2026-10-05 DerpFest 17 sync (`04cf624`). `manifest.json` records each
+2026-10-08 DerpFest 17 sync (`04cf624`). `manifest.json` records each
 project's base commit, patch SHA-256 and file count.
 
 Sync the Project-Wisdom `17` sources with `repo sync --recurse-submodules`.
