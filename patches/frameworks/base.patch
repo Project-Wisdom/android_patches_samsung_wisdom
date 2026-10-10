@@ -1,3 +1,29 @@
+diff --git a/cmds/bootanimation/BootAnimation.cpp b/cmds/bootanimation/BootAnimation.cpp
+index bf1863e83d43aa078ccec7b39a81536c2077c636..352841c0415d6adde66abe138603e1518f02b735 100644
+--- a/cmds/bootanimation/BootAnimation.cpp
++++ b/cmds/bootanimation/BootAnimation.cpp
+@@ -76,6 +76,7 @@ static const char OEM_BOOTANIMATION_FILE[] = "/oem/media/bootanimation.zip";
+ static const char PRODUCT_BOOTANIMATION_DIR[] = "/product/media/";
+ static const char PRODUCT_BOOTANIMATION_DARK_FILE[] = "bootanimation-dark.zip";
+ static const char PRODUCT_BOOTANIMATION_FILE[] = "bootanimation.zip";
++static const char SYSTEM_BOOTANIMATION_DARK_FILE[] = "/system/media/bootanimation-dark.zip";
+ static const char SYSTEM_BOOTANIMATION_FILE[] = "/system/media/bootanimation.zip";
+ static const char APEX_BOOTANIMATION_FILE[] = "/apex/com.android.bootanimation/etc/bootanimation.zip";
+ static const char OEM_SHUTDOWNANIMATION_FILE[] = "/oem/media/shutdownanimation.zip";
+@@ -683,9 +684,11 @@ void BootAnimation::findBootAnimationFile() {
+     const std::string productBootanimationFile = PRODUCT_BOOTANIMATION_DIR +
+         android::base::GetProperty("ro.product.bootanim.file", playDarkAnim ?
+         PRODUCT_BOOTANIMATION_DARK_FILE : PRODUCT_BOOTANIMATION_FILE);
+-    static const std::vector<std::string> bootFiles = {
++    const char* systemBootanimationFile = playDarkAnim ?
++        SYSTEM_BOOTANIMATION_DARK_FILE : SYSTEM_BOOTANIMATION_FILE;
++    const std::vector<std::string> bootFiles = {
+         APEX_BOOTANIMATION_FILE, productBootanimationFile,
+-        OEM_BOOTANIMATION_FILE, SYSTEM_BOOTANIMATION_FILE
++        OEM_BOOTANIMATION_FILE, systemBootanimationFile
+     };
+     static const std::vector<std::string> shutdownFiles = {
+         PRODUCT_SHUTDOWNANIMATION_FILE, OEM_SHUTDOWNANIMATION_FILE, SYSTEM_SHUTDOWNANIMATION_FILE, ""
 diff --git a/packages/SystemUI/compose/features/src/com/android/systemui/notifications/ui/composable/Notifications.kt b/packages/SystemUI/compose/features/src/com/android/systemui/notifications/ui/composable/Notifications.kt
 index b302da3e65bdf29ee7b2cd250dc40ce160ba406c..af50e38eceb8460cc4e6c1f3ba835da1aa1add51 100644
 --- a/packages/SystemUI/compose/features/src/com/android/systemui/notifications/ui/composable/Notifications.kt
