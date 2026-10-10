@@ -91,6 +91,14 @@
       "files": 2
     },
     {
+      "project": "packages/apps/Canvas",
+      "upstream": "https://github.com/LineageOS/android_packages_apps_Canvas",
+      "base_commit": "115bed958a82fb9bcc3a770e23eedf40a3442978",
+      "patch": "patches/packages/apps/Canvas.patch",
+      "sha256": "9cde19493b35bd4cffbb8d035d8a1b96499bc7a84593640168d32f4fd78cde9d",
+      "files": 2
+    },
+    {
       "project": "packages/apps/Launcher3",
       "upstream": "https://github.com/DerpFest-AOSP/android_packages_apps_DerpLauncher",
       "base_commit": "c54bd173b873aca0c47638ea0239f851b8604947",

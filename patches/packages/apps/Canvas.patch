@@ -1,0 +1,40 @@
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 6cd90751fa53fb0fde04ef6dd53aedba814cde93..2526fcec0dde15d9420a522d986dc1adc32665d6 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -17,6 +17,13 @@
+             android:name=".MainActivity"
+             android:exported="true"
+             android:theme="@style/Theme.Canvas">
++            <intent-filter>
++                <action android:name="android.intent.action.VIEW" />
++                <category android:name="android.intent.category.DEFAULT" />
++                <data android:mimeType="image/jpeg" />
++                <data android:mimeType="image/png" />
++                <data android:mimeType="image/webp" />
++            </intent-filter>
+             <intent-filter>
+                 <action android:name="android.intent.action.EDIT" />
+                 <category android:name="android.intent.category.DEFAULT" />
+diff --git a/app/src/main/java/org/lineageos/canvas/MainActivity.kt b/app/src/main/java/org/lineageos/canvas/MainActivity.kt
+index 5e44471815da86bd5b17dbd8a7dc70675865c822..8b92eed576ca4184f6dc1da4fa9677ff9120e9c7 100644
+--- a/app/src/main/java/org/lineageos/canvas/MainActivity.kt
++++ b/app/src/main/java/org/lineageos/canvas/MainActivity.kt
+@@ -32,10 +32,13 @@ class MainActivity : ComponentActivity() {
+     private val resultOpsViewModel: ResultOpsViewModel by viewModels()
+ 
+     private val onNewIntentListener = Consumer<Intent> { intent ->
+-        val uri = intent.takeIf { it.action == Intent.ACTION_EDIT }?.data ?: run {
+-            finish()
+-            return@Consumer
+-        }
++        val uri =
++            intent.takeIf {
++                it.action == Intent.ACTION_EDIT || it.action == Intent.ACTION_VIEW
++            }?.data ?: run {
++                finish()
++                return@Consumer
++            }
+ 
+         if (ImageFormat.fromMimeTypeOrNull(contentResolver.getType(uri)) == null) {
+             finish()
