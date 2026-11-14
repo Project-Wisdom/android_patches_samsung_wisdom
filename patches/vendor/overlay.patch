@@ -1,5 +1,5 @@
 diff --git a/overlays.mk b/overlays.mk
-index a1905a56e85cc20df2788a181cac0b847b7e2c5e..a50e70c3e710e34d43516d7977c4ce2921934e5c 100755
+index 271d9fdc501bc671d6a1e34b4f945e75aab4a665..79114a7f8571be3035eb43427b69e6947e38c461 100755
 --- a/overlays.mk
 +++ b/overlays.mk
 @@ -14,6 +14,7 @@
@@ -10,10 +10,10 @@ index a1905a56e85cc20df2788a181cac0b847b7e2c5e..a50e70c3e710e34d43516d7977c4ce29
  $(call inherit-product-if-exists, external/google-fonts/arbutus-slab/fonts.mk)
  $(call inherit-product-if-exists, external/google-fonts/arvo/fonts.mk)
  $(call inherit-product-if-exists, external/google-fonts/lato/fonts.mk)
-@@ -59,6 +60,7 @@ PRODUCT_PACKAGES += \
-     FontStoropiaSourceOverlay \
-     FontRobotoFlexRegularOverlay \
-     FontGoogleSansFlexRegularOverlay
+@@ -81,6 +82,7 @@ PRODUCT_PACKAGES += \
+     FontSpaceGroteskOverlay \
+     FontTrebuchetOverlay \
+     FontTsanjerJinkaiOverlay
 +endif
  
  # Icon shapes

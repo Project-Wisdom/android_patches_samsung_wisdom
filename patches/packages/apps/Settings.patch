@@ -1,0 +1,529 @@
+diff --git a/res/values-zh-rCN/strings.xml b/res/values-zh-rCN/strings.xml
+index e58c80172bfc843daeec1076cfa3d0a3b91747d0..bdb42ca114f83fa42fff8123326e9dc7abe8fb93 100644
+--- a/res/values-zh-rCN/strings.xml
++++ b/res/values-zh-rCN/strings.xml
+@@ -1333,7 +1333,10 @@
+     <string name="screen_resolution_title" msgid="2690518693139811486">"屏幕分辨率"</string>
+     <string name="screen_resolution_option_high" msgid="2617496842852992853">"高分辨率"</string>
+     <string name="screen_resolution_option_full" msgid="4456839315039000517">"最大分辨率"</string>
++    <string name="screen_resolution_option_performance">"流畅模式"</string>
++    <string name="screen_resolution_option_native">"原生分辨率"</string>
+     <string name="screen_resolution_footer" msgid="1230761249204935717">"最大分辨率会增加耗电量。切换分辨率可能会导致一些应用重启。"</string>
++    <string name="screen_resolution_footer_performance">"流畅模式以 900 × 1440 渲染，再缩放到面板原生的 1200 × 1920。切换时部分应用可能会重启。"</string>
+     <string name="screen_resolution_refresh_rate_combined_displayed_text" msgid="6260746140407821373">"<xliff:g id="WIDTH">%1$s</xliff:g> x <xliff:g id="HEIGHT">%2$s</xliff:g> (<xliff:g id="REFRESH_RATE">%3$s</xliff:g> Hz)"</string>
+     <string name="screen_resolution_refresh_rate_combined_a11y" msgid="235228307723517439">"<xliff:g id="WIDTH">%1$s</xliff:g> 乘 <xliff:g id="HEIGHT">%2$s</xliff:g>，<xliff:g id="REFRESH_RATE">%3$s</xliff:g> 赫兹"</string>
+     <string name="screen_resolution_displayed_text" msgid="5162121376105888005">"<xliff:g id="WIDTH">%1$s</xliff:g> x <xliff:g id="HEIGHT">%2$s</xliff:g>"</string>
+diff --git a/res/values/strings.xml b/res/values/strings.xml
+index 7d4fde480f2d316c2a99441eb03a6867f9780227..118ed24eb55efffdd9662fdf67707338c9ed04a7 100644
+--- a/res/values/strings.xml
++++ b/res/values/strings.xml
+@@ -3166,8 +3166,14 @@
+     <string name="screen_resolution_option_high">High resolution</string>
+     <!-- Display settings screen, screen resolution option for full resolution [CHAR LIMIT=45] -->
+     <string name="screen_resolution_option_full">Max resolution</string>
++    <!-- Optional software-rendered resolution mode for the wisdom device [CHAR LIMIT=45] -->
++    <string name="screen_resolution_option_performance">Performance mode</string>
++    <!-- Native panel resolution mode for the wisdom device [CHAR LIMIT=45] -->
++    <string name="screen_resolution_option_native">Native resolution</string>
+     <!-- The footer message for switch screen resolution [CHAR LIMIT=NONE] -->
+     <string name="screen_resolution_footer">Max resolution uses more of your battery. Switching your resolution may cause some apps to restart.</string>
++    <!-- Footer for the optional wisdom software-rendered resolution mode [CHAR LIMIT=NONE] -->
++    <string name="screen_resolution_footer_performance">Performance mode renders at 900 × 1440 and scales to the panel’s native 1200 × 1920. Some apps may restart when switching.</string>
+     <!-- Screen resolution and refresh rate displayed text [CHAR LIMIT=NONE] -->
+     <string name="screen_resolution_refresh_rate_combined_displayed_text"><xliff:g id="width">%1$s</xliff:g> x <xliff:g id="height">%2$s</xliff:g> (<xliff:g id="refresh_rate">%3$s</xliff:g> Hz)</string>
+     <!-- Screen resolution and refresh rate a11y text. Replaces 600x800 -> 600 by 800, and 'Hz' notation to 'Hertz' [CHAR LIMIT=NONE] -->
+diff --git a/src/com/android/settings/display/ScreenResolutionController.java b/src/com/android/settings/display/ScreenResolutionController.java
+index acec1383bd5a55da19ee45bd52bb0e329438da04..d321cfef573cfea2d97eb26d9a79cc35e69c71b5 100644
+--- a/src/com/android/settings/display/ScreenResolutionController.java
++++ b/src/com/android/settings/display/ScreenResolutionController.java
+@@ -56,11 +56,19 @@ public class ScreenResolutionController extends BasePreferenceController {
+         initSupportedResolutionData();
+     }
+ 
+-    /**
+-     * Initialize the resolution data. So far, we support two resolution switching. Save the width
+-     * and the height for high resolution and full resolution.
+-     */
++    /** Initialize the supported resolution data for the device. */
+     private void initSupportedResolutionData() {
++        if (ScreenResolutionExtensionsKt.isWisdomVirtualResolutionSupported(mContext)) {
++            mHighWidth = ScreenResolutionExtensionsKt.getHighResolutionDisplayWidth(mContext);
++            mHighHeight = ScreenResolutionExtensionsKt.getHighResolutionDisplayHeight(mContext);
++            mFullWidth = ScreenResolutionExtensionsKt.getFullResolutionDisplayWidth(mContext);
++            mFullHeight = ScreenResolutionExtensionsKt.getFullResolutionDisplayHeight(mContext);
++            mSupportedResolutions = new HashSet<>();
++            mSupportedResolutions.add(new Point(mHighWidth, mHighHeight));
++            mSupportedResolutions.add(new Point(mFullWidth, mFullHeight));
++            return;
++        }
++
+         // Collect and filter the resolutions
+         Set<Point> resolutions = new HashSet<>();
+         for (Display.Mode mode : getSupportedModes()) {
+@@ -92,11 +100,18 @@ public class ScreenResolutionController extends BasePreferenceController {
+     @Override
+     public CharSequence getSummary() {
+         String summary = null;
+-        int width = getDisplayWidth();
++        int width = ScreenResolutionExtensionsKt.getDisplayWidth(mContext);
++        boolean wisdom = ScreenResolutionExtensionsKt.isWisdomVirtualResolutionSupported(mContext);
+         if (width == mHighWidth) {
+-            summary = mContext.getString(R.string.screen_resolution_option_high);
++            summary = mContext.getString(
++                    wisdom
++                            ? R.string.screen_resolution_option_performance
++                            : R.string.screen_resolution_option_high);
+         } else if (width == mFullWidth) {
+-            summary = mContext.getString(R.string.screen_resolution_option_full);
++            summary = mContext.getString(
++                    wisdom
++                            ? R.string.screen_resolution_option_native
++                            : R.string.screen_resolution_option_full);
+         } else {
+             summary = mContext.getString(R.string.screen_resolution_title);
+         }
+@@ -131,7 +146,7 @@ public class ScreenResolutionController extends BasePreferenceController {
+ 
+     @VisibleForTesting
+     public int getDisplayWidth() {
+-        return mDisplay.getMode().getPhysicalWidth();
++        return ScreenResolutionExtensionsKt.getDisplayWidth(mContext);
+     }
+ 
+     @VisibleForTesting
+diff --git a/src/com/android/settings/display/ScreenResolutionExtensions.kt b/src/com/android/settings/display/ScreenResolutionExtensions.kt
+index b0d6e6e74eb4aa28b080df97d197868c9610d1c1..3fd6f47c14c52c5f9ab87ccf1b4b13d5b5240dcd 100644
+--- a/src/com/android/settings/display/ScreenResolutionExtensions.kt
++++ b/src/com/android/settings/display/ScreenResolutionExtensions.kt
+@@ -19,9 +19,12 @@ package com.android.settings.display
+ import android.content.Context
+ import android.graphics.Point
+ import android.hardware.display.DisplayManager
++import android.os.Build
++import android.os.UserHandle
+ import android.provider.Settings
+ import android.util.Log
+ import android.view.Display
++import android.view.WindowManagerGlobal
+ import com.android.settings.core.instrumentation.SettingsStatsLog
+ 
+ // LINT.IfChange
+@@ -29,16 +32,69 @@ private const val TAG = "ScreenResolutionExt"
+ private const val SCREEN_RESOLUTION = "user_selected_resolution"
+ private const val HIGHRESOLUTION_IDX = 0
+ private const val FULLRESOLUTION_IDX = 1
++private const val WISDOM_DEVICE = "wisdom"
++private const val WISDOM_NATIVE_WIDTH = 1200
++private const val WISDOM_NATIVE_HEIGHT = 1920
++private const val WISDOM_PERFORMANCE_WIDTH = 900
++private const val WISDOM_PERFORMANCE_HEIGHT = 1440
++private const val WISDOM_PREVIOUS_DENSITY_SETTING = "wisdom_screen_resolution_previous_density"
+ 
+ private fun Context.getDefaultDisplay(): Display? {
+     val displayManager = getSystemService(DisplayManager::class.java)
+     return displayManager?.getDisplay(Display.DEFAULT_DISPLAY)
+ }
+ 
+-private fun Context.getSortedResolutionList(): List<Point>? {
++private fun Context.getPhysicalResolutionList(): Set<Point>? {
+     val display = getDefaultDisplay() ?: return null
+-    val resolutions =
+-        display.supportedModes.mapTo(mutableSetOf()) { Point(it.physicalWidth, it.physicalHeight) }
++    return display.supportedModes.mapTo(mutableSetOf()) {
++        Point(it.physicalWidth, it.physicalHeight)
++    }
++}
++
++/**
++ * Wisdom has a fixed native panel mode. Expose a software-rendered size choice only when the
++ * device still reports that single native mode; other devices continue using hardware modes.
++ */
++fun Context.isWisdomVirtualResolutionSupported(): Boolean {
++    if (Build.DEVICE != WISDOM_DEVICE) return false
++    val resolutions = getPhysicalResolutionList() ?: return false
++    if (resolutions.size != 1) return false
++    val physicalResolution = resolutions.first()
++    if (physicalResolution.x != WISDOM_NATIVE_WIDTH
++            || physicalResolution.y != WISDOM_NATIVE_HEIGHT) {
++        return false
++    }
++
++    val userId = UserHandle.myUserId()
++    val previousDensity = Settings.Secure.getIntForUser(
++        contentResolver,
++        WISDOM_PREVIOUS_DENSITY_SETTING,
++        0,
++        userId,
++    )
++    if (previousDensity > 0) return true
++
++    val size = Point()
++    return try {
++        val windowManager = WindowManagerGlobal.getWindowManagerService() ?: return false
++        windowManager.getBaseDisplaySize(Display.DEFAULT_DISPLAY, size)
++        (size.x == WISDOM_NATIVE_WIDTH && size.y == WISDOM_NATIVE_HEIGHT)
++                || (size.x == WISDOM_PERFORMANCE_WIDTH && size.y == WISDOM_PERFORMANCE_HEIGHT)
++    } catch (e: Exception) {
++        Log.e(TAG, "Unable to read Wisdom logical display size", e)
++        false
++    }
++}
++
++fun Context.getScreenResolutionList(): List<Point>? {
++    if (isWisdomVirtualResolutionSupported()) {
++        return listOf(
++            Point(WISDOM_PERFORMANCE_WIDTH, WISDOM_PERFORMANCE_HEIGHT),
++            Point(WISDOM_NATIVE_WIDTH, WISDOM_NATIVE_HEIGHT),
++        )
++    }
++
++    val resolutions = getPhysicalResolutionList() ?: return null
+ 
+     if (resolutions.size != 2) {
+         Log.e(TAG, "No support")
+@@ -48,28 +104,46 @@ private fun Context.getSortedResolutionList(): List<Point>? {
+     return resolutions.toList().sortedBy { it.x * it.y }
+ }
+ 
++/** Wisdom software-rendered choices, ordered from performance to native resolution. */
++fun Context.getWisdomResolutionOptions(): List<Point> = listOf(
++    Point(WISDOM_PERFORMANCE_WIDTH, WISDOM_PERFORMANCE_HEIGHT),
++    Point(WISDOM_NATIVE_WIDTH, WISDOM_NATIVE_HEIGHT),
++)
++
+ /** Return true if the device contains exactly two resolutions. */
+ fun Context.checkSupportedResolutions(): Boolean {
+-    val resolutionList = getSortedResolutionList() ?: return false
++    val resolutionList = getScreenResolutionList() ?: return false
+     val highWidth = resolutionList[HIGHRESOLUTION_IDX].x
+     val fullWidth = resolutionList[FULLRESOLUTION_IDX].x
+     return highWidth != 0 && fullWidth != 0
+ }
+ 
+ /** Return the high resolution width of the device. */
+-fun Context.getHighResolutionDisplayWidth(): Int = getSortedResolutionList()?.getOrNull(HIGHRESOLUTION_IDX)?.x ?: 0
++fun Context.getHighResolutionDisplayWidth(): Int = getScreenResolutionList()?.getOrNull(HIGHRESOLUTION_IDX)?.x ?: 0
+ 
+ /** Return the full resolution width of the device. */
+-fun Context.getFullResolutionDisplayWidth(): Int = getSortedResolutionList()?.getOrNull(FULLRESOLUTION_IDX)?.x ?: 0
++fun Context.getFullResolutionDisplayWidth(): Int = getScreenResolutionList()?.getOrNull(FULLRESOLUTION_IDX)?.x ?: 0
+ 
+ /** Return the high resolution height of the device. */
+-fun Context.getHighResolutionDisplayHeight(): Int = getSortedResolutionList()?.getOrNull(HIGHRESOLUTION_IDX)?.y ?: 0
++fun Context.getHighResolutionDisplayHeight(): Int = getScreenResolutionList()?.getOrNull(HIGHRESOLUTION_IDX)?.y ?: 0
+ 
+ /** Return the full resolution height of the device. */
+-fun Context.getFullResolutionDisplayHeight(): Int = getSortedResolutionList()?.getOrNull(FULLRESOLUTION_IDX)?.y ?: 0
++fun Context.getFullResolutionDisplayHeight(): Int = getScreenResolutionList()?.getOrNull(FULLRESOLUTION_IDX)?.y ?: 0
+ 
+ /** Return the current display width. */
+-fun Context.getDisplayWidth(): Int = getDefaultDisplay()?.mode?.physicalWidth ?: 0
++fun Context.getDisplayWidth(): Int {
++    if (isWisdomVirtualResolutionSupported()) {
++        val size = Point()
++        try {
++            val windowManager = WindowManagerGlobal.getWindowManagerService() ?: return 0
++            windowManager.getBaseDisplaySize(Display.DEFAULT_DISPLAY, size)
++            return size.x
++        } catch (e: Exception) {
++            Log.e(TAG, "Unable to read Wisdom logical display size", e)
++        }
++    }
++    return getDefaultDisplay()?.mode?.physicalWidth ?: 0
++}
+ 
+ /** Get preferred display mode. */
+ private fun Context.getPreferMode(width: Int): Display.Mode? {
+@@ -83,6 +157,136 @@ private fun Context.getPreferMode(width: Int): Display.Mode? {
+ 
+ /** Using display manager to set the display mode. */
+ fun Context.setDisplayModeByWidth(width: Int) {
++    if (isWisdomVirtualResolutionSupported()) {
++        val windowManager = WindowManagerGlobal.getWindowManagerService() ?: return
++        val userId = UserHandle.myUserId()
++        val currentSize = Point()
++        var currentDensity = 0
++        var savedOriginalDensity = 0
++        var haveDisplaySnapshot = false
++        try {
++            windowManager.getBaseDisplaySize(Display.DEFAULT_DISPLAY, currentSize)
++            currentDensity = windowManager.getBaseDisplayDensity(Display.DEFAULT_DISPLAY)
++            savedOriginalDensity = Settings.Secure.getIntForUser(
++                contentResolver,
++                WISDOM_PREVIOUS_DENSITY_SETTING,
++                0,
++                userId,
++            )
++            haveDisplaySnapshot = true
++            when (width) {
++                WISDOM_PERFORMANCE_WIDTH -> {
++                    val initialDensity = windowManager.getInitialDisplayDensity(Display.DEFAULT_DISPLAY)
++                    val currentIsVirtualSize =
++                        (currentSize.x == WISDOM_PERFORMANCE_WIDTH
++                                && currentSize.y == WISDOM_PERFORMANCE_HEIGHT)
++                    val densityToPreserve = when {
++                        savedOriginalDensity > 0 -> savedOriginalDensity
++                        currentIsVirtualSize -> initialDensity
++                        else -> currentDensity
++                    }
++                    if (savedOriginalDensity == 0) {
++                        val saved = Settings.Secure.putIntForUser(
++                            contentResolver,
++                            WISDOM_PREVIOUS_DENSITY_SETTING,
++                            densityToPreserve,
++                            userId,
++                        )
++                        if (!saved) {
++                            Log.e(TAG, "Unable to save the current Wisdom display density")
++                            return
++                        }
++                    }
++                    windowManager.setForcedDisplaySize(
++                        Display.DEFAULT_DISPLAY,
++                        width,
++                        WISDOM_PERFORMANCE_HEIGHT,
++                    )
++                    windowManager.setForcedDisplayDensityForUser(
++                        Display.DEFAULT_DISPLAY,
++                        Math.round(densityToPreserve * width.toFloat() / WISDOM_NATIVE_WIDTH),
++                        userId,
++                    )
++                }
++                WISDOM_NATIVE_WIDTH -> {
++                    if (currentSize.x == WISDOM_NATIVE_WIDTH
++                            && currentSize.y == WISDOM_NATIVE_HEIGHT
++                            && savedOriginalDensity == 0) {
++                        return
++                    }
++                    windowManager.clearForcedDisplaySize(Display.DEFAULT_DISPLAY)
++                    val densityToRestore = if (savedOriginalDensity > 0) {
++                        savedOriginalDensity
++                    } else {
++                        windowManager.getInitialDisplayDensity(Display.DEFAULT_DISPLAY)
++                    }
++                    if (densityToRestore == windowManager.getInitialDisplayDensity(Display.DEFAULT_DISPLAY)) {
++                        windowManager.clearForcedDisplayDensityForUser(Display.DEFAULT_DISPLAY, userId)
++                    } else {
++                        windowManager.setForcedDisplayDensityForUser(
++                            Display.DEFAULT_DISPLAY,
++                            densityToRestore,
++                            userId,
++                        )
++                    }
++                    Settings.Secure.putStringForUser(
++                        contentResolver,
++                        WISDOM_PREVIOUS_DENSITY_SETTING,
++                        null,
++                        userId,
++                    )
++                }
++                else -> {
++                    Log.e(TAG, "Unsupported Wisdom logical resolution width: $width")
++                }
++            }
++        } catch (e: Exception) {
++            Log.e(TAG, "Unable to apply Wisdom logical display size", e)
++            // Restore the exact display state that was active before a partial switch.
++            if (haveDisplaySnapshot) {
++                try {
++                    if (currentSize.x == WISDOM_NATIVE_WIDTH
++                            && currentSize.y == WISDOM_NATIVE_HEIGHT) {
++                        windowManager.clearForcedDisplaySize(Display.DEFAULT_DISPLAY)
++                    } else {
++                        windowManager.setForcedDisplaySize(
++                            Display.DEFAULT_DISPLAY,
++                            currentSize.x,
++                            currentSize.y,
++                        )
++                    }
++                    if (currentDensity == windowManager.getInitialDisplayDensity(Display.DEFAULT_DISPLAY)) {
++                        windowManager.clearForcedDisplayDensityForUser(Display.DEFAULT_DISPLAY, userId)
++                    } else {
++                        windowManager.setForcedDisplayDensityForUser(
++                            Display.DEFAULT_DISPLAY,
++                            currentDensity,
++                            userId,
++                        )
++                    }
++                    if (savedOriginalDensity > 0) {
++                        Settings.Secure.putIntForUser(
++                            contentResolver,
++                            WISDOM_PREVIOUS_DENSITY_SETTING,
++                            savedOriginalDensity,
++                            userId,
++                        )
++                    } else {
++                        Settings.Secure.putStringForUser(
++                            contentResolver,
++                            WISDOM_PREVIOUS_DENSITY_SETTING,
++                            null,
++                            userId,
++                        )
++                    }
++                } catch (restoreException: Exception) {
++                    Log.e(TAG, "Unable to restore previous Wisdom display state", restoreException)
++                }
++            }
++        }
++        return
++    }
++
+     val display = getDefaultDisplay() ?: return
+     val mode = getPreferMode(width)
+     if (mode == null) {
+diff --git a/src/com/android/settings/display/ScreenResolutionFragment.java b/src/com/android/settings/display/ScreenResolutionFragment.java
+index 990921487512bf3d2a644e5293c8872bc82c9d26..ae1a7cb73142c5a93c4e6cafbf2fa184f9c0a67a 100644
+--- a/src/com/android/settings/display/ScreenResolutionFragment.java
++++ b/src/com/android/settings/display/ScreenResolutionFragment.java
+@@ -56,8 +56,11 @@ public class ScreenResolutionFragment extends RadioButtonPickerFragment {
+     private Resources mResources;
+     private static final String SCREEN_RESOLUTION = "user_selected_resolution";
+     private static final String SCREEN_RESOLUTION_KEY = "screen_resolution";
++    private static final String WISDOM_PERFORMANCE_KEY = "wisdom_performance";
++    private static final String WISDOM_NATIVE_KEY = "wisdom_native";
+     private Display mDefaultDisplay;
+     private String[] mScreenResolutionOptions;
++    private String[] mScreenResolutionOptionKeys;
+     private Set<Point> mResolutions;
+     private SpannableString[] mScreenResolutionSummaries;
+ 
+@@ -74,8 +77,22 @@ public class ScreenResolutionFragment extends RadioButtonPickerFragment {
+         mDefaultDisplay =
+                 context.getSystemService(DisplayManager.class).getDisplay(Display.DEFAULT_DISPLAY);
+         mResources = context.getResources();
+-        mScreenResolutionOptions =
+-                mResources.getStringArray(R.array.config_screen_resolution_options_strings);
++        final boolean wisdomVirtualResolution =
++                ScreenResolutionExtensionsKt.isWisdomVirtualResolutionSupported(context);
++        if (wisdomVirtualResolution) {
++            mScreenResolutionOptions = new String[] {
++                    context.getString(R.string.screen_resolution_option_performance),
++                    context.getString(R.string.screen_resolution_option_native),
++            };
++            mScreenResolutionOptionKeys = new String[] {
++                    WISDOM_PERFORMANCE_KEY,
++                    WISDOM_NATIVE_KEY,
++            };
++        } else {
++            mScreenResolutionOptions =
++                    mResources.getStringArray(R.array.config_screen_resolution_options_strings);
++            mScreenResolutionOptionKeys = mScreenResolutionOptions;
++        }
+         mImagePreference = new IllustrationPreference(context);
+         mDisplayObserver = new DisplayObserver(context);
+         ScreenResolutionController controller =
+@@ -84,13 +101,21 @@ public class ScreenResolutionFragment extends RadioButtonPickerFragment {
+         mHighWidth = ScreenResolutionExtensionsKt.getHighResolutionDisplayWidth(context);
+         mFullWidth = ScreenResolutionExtensionsKt.getFullResolutionDisplayWidth(context);
+         Log.i(TAG, "mHighWidth:" + mHighWidth + "mFullWidth:" + mFullWidth);
+-        mScreenResolutionSummaries =
+-                new SpannableString[] {
+-                    getResolutionSpannable(mHighWidth,
+-                        ScreenResolutionExtensionsKt.getHighResolutionDisplayHeight(context)),
+-                    getResolutionSpannable(mFullWidth,
+-                        ScreenResolutionExtensionsKt.getFullResolutionDisplayHeight(context))
+-                };
++        final List<Point> resolutionOptions = wisdomVirtualResolution
++                ? ScreenResolutionExtensionsKt.getWisdomResolutionOptions(context)
++                : new ArrayList<>();
++        if (!wisdomVirtualResolution) {
++            // Keep the generic physical-mode order used by the existing two-choice picker.
++            resolutionOptions.add(new Point(mHighWidth,
++                    ScreenResolutionExtensionsKt.getHighResolutionDisplayHeight(context)));
++            resolutionOptions.add(new Point(mFullWidth,
++                    ScreenResolutionExtensionsKt.getFullResolutionDisplayHeight(context)));
++        }
++        mScreenResolutionSummaries = new SpannableString[mScreenResolutionOptionKeys.length];
++        for (int i = 0; i < mScreenResolutionOptionKeys.length; i++) {
++            final Point resolution = resolutionOptions.get(i);
++            mScreenResolutionSummaries[i] = getResolutionSpannable(resolution.x, resolution.y);
++        }
+     }
+ 
+ 
+@@ -112,7 +137,10 @@ public class ScreenResolutionFragment extends RadioButtonPickerFragment {
+         screen.addPreference(mImagePreference);
+ 
+         final FooterPreference footerPreference = new FooterPreference(screen.getContext());
+-        footerPreference.setTitle(R.string.screen_resolution_footer);
++        footerPreference.setTitle(
++                ScreenResolutionExtensionsKt.isWisdomVirtualResolutionSupported(getContext())
++                        ? R.string.screen_resolution_footer_performance
++                        : R.string.screen_resolution_footer);
+         footerPreference.setSelectable(false);
+         footerPreference.setLayoutResource(
+                 com.android.settingslib.widget.preference.footer.R.layout.preference_footer);
+@@ -140,7 +168,7 @@ public class ScreenResolutionFragment extends RadioButtonPickerFragment {
+                     new ScreenResolutionCandidateInfo(
+                             mScreenResolutionOptions[i],
+                             mScreenResolutionSummaries[i],
+-                            mScreenResolutionOptions[i],
++                            mScreenResolutionOptionKeys[i],
+                             true /* enabled */));
+         }
+ 
+@@ -156,7 +184,9 @@ public class ScreenResolutionFragment extends RadioButtonPickerFragment {
+     /** Using display manager to set the display mode. */
+     @VisibleForTesting
+     public void setDisplayMode(final int width) {
+-        mDisplayObserver.startObserve();
++        if (!ScreenResolutionExtensionsKt.isWisdomVirtualResolutionSupported(getContext())) {
++            mDisplayObserver.startObserve();
++        }
+         ScreenResolutionExtensionsKt.setDisplayModeByWidth(getContext(), width);
+     }
+ 
+@@ -164,24 +194,24 @@ public class ScreenResolutionFragment extends RadioButtonPickerFragment {
+     @VisibleForTesting
+     String getKeyForResolution(int width) {
+         return width == mHighWidth
+-                ? mScreenResolutionOptions[ScreenResolutionController.HIGHRESOLUTION_IDX]
++                ? mScreenResolutionOptionKeys[ScreenResolutionController.HIGHRESOLUTION_IDX]
+                 : width == mFullWidth
+-                        ? mScreenResolutionOptions[ScreenResolutionController.FULLRESOLUTION_IDX]
++                        ? mScreenResolutionOptionKeys[ScreenResolutionController.FULLRESOLUTION_IDX]
+                         : null;
+     }
+ 
+     /** Get the width corresponding to the resolution key. */
+     int getWidthForResoluitonKey(String key) {
+-        return mScreenResolutionOptions[ScreenResolutionController.HIGHRESOLUTION_IDX].equals(key)
++        return mScreenResolutionOptionKeys[ScreenResolutionController.HIGHRESOLUTION_IDX].equals(key)
+                 ? mHighWidth
+-                : mScreenResolutionOptions[ScreenResolutionController.FULLRESOLUTION_IDX].equals(
++                : mScreenResolutionOptionKeys[ScreenResolutionController.FULLRESOLUTION_IDX].equals(
+                     key)
+                 ? mFullWidth : -1;
+     }
+ 
+     @Override
+     protected String getDefaultKey() {
+-        int physicalWidth = getDisplayMode().getPhysicalWidth();
++        int physicalWidth = ScreenResolutionExtensionsKt.getDisplayWidth(getContext());
+ 
+         return getKeyForResolution(physicalWidth);
+     }
+@@ -203,7 +233,8 @@ public class ScreenResolutionFragment extends RadioButtonPickerFragment {
+     public void onRadioButtonClicked(SelectorWithWidgetPreference selected) {
+         String selectedKey = selected.getKey();
+         int selectedWidth = getWidthForResoluitonKey(selectedKey);
+-        if (!mDisplayObserver.setPendingResolutionChange(selectedWidth)) {
++        if (!ScreenResolutionExtensionsKt.isWisdomVirtualResolutionSupported(getContext())
++                && !mDisplayObserver.setPendingResolutionChange(selectedWidth)) {
+             return;
+         }
+ 
+@@ -214,11 +245,11 @@ public class ScreenResolutionFragment extends RadioButtonPickerFragment {
+     private void updateIllustrationImage(IllustrationPreference preference) {
+         String key = getDefaultKey();
+         if (TextUtils.equals(
+-                mScreenResolutionOptions[ScreenResolutionController.HIGHRESOLUTION_IDX], key)) {
++                mScreenResolutionOptionKeys[ScreenResolutionController.HIGHRESOLUTION_IDX], key)) {
+             preference.setLottieAnimationResId(R.raw.lottie_screen_resolution_high);
+             preference.applyDynamicColor();
+         } else if (TextUtils.equals(
+-                mScreenResolutionOptions[ScreenResolutionController.FULLRESOLUTION_IDX], key)) {
++                mScreenResolutionOptionKeys[ScreenResolutionController.FULLRESOLUTION_IDX], key)) {
+             preference.setLottieAnimationResId(R.raw.lottie_screen_resolution_full);
+             preference.applyDynamicColor();
+         }

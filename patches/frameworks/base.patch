@@ -137,10 +137,10 @@ index b302da3e65bdf29ee7b2cd250dc40ce160ba406c..af50e38eceb8460cc4e6c1f3ba835da1
          },
      )
 diff --git a/packages/SystemUI/compose/features/src/com/android/systemui/qs/ui/composable/QuickSettingsScene.kt b/packages/SystemUI/compose/features/src/com/android/systemui/qs/ui/composable/QuickSettingsScene.kt
-index 38855b2bae4397301f9d3f02b61572cf75b64c24..2b9bcc301b047b743c320b2fd8662ce840947aae 100644
+index 32eac8212bc17daa888b572b4042f8eeec98784c..f13d9f29ad9f52c55165362348d153011947ab4e 100644
 --- a/packages/SystemUI/compose/features/src/com/android/systemui/qs/ui/composable/QuickSettingsScene.kt
 +++ b/packages/SystemUI/compose/features/src/com/android/systemui/qs/ui/composable/QuickSettingsScene.kt
-@@ -225,8 +225,7 @@ private fun ContentScope.QuickSettingsScene(
+@@ -224,8 +224,7 @@ private fun ContentScope.QuickSettingsScene(
      val animatedBlurRadiusPx: Float by
          animateFloatAsState(targetValue = targetBlur, label = "QS-blurRadius")
      val onlyPunchHolesInThisScene =
@@ -150,7 +150,7 @@ index 38855b2bae4397301f9d3f02b61572cf75b64c24..2b9bcc301b047b743c320b2fd8662ce8
      Box(
          modifier
              .fillMaxSize()
-@@ -343,7 +342,7 @@ private fun ContentScope.QuickSettingsScene(
+@@ -342,7 +341,7 @@ private fun ContentScope.QuickSettingsScene(
                  viewModel = notificationsPlaceholderViewModel,
                  notificationRulesParentViewModel = notificationRulesParentViewModel,
                  jankMonitor = jankMonitor,
@@ -159,11 +159,48 @@ index 38855b2bae4397301f9d3f02b61572cf75b64c24..2b9bcc301b047b743c320b2fd8662ce8
                  shouldFillMaxHeight = true,
                  isTransparencyEnabled = viewModel.isTransparencyEnabled,
                  stackTopPadding = dimensionResource(id = R.dimen.notification_side_paddings_single),
+diff --git a/packages/SystemUI/compose/features/src/com/android/systemui/qs/ui/composable/QuickSettingsShadeOverlay.kt b/packages/SystemUI/compose/features/src/com/android/systemui/qs/ui/composable/QuickSettingsShadeOverlay.kt
+index ed887eb1336b6d3e843a77e14fde192014bd6e8d..35a2b90cd9cb86c88d31f523043ea39c297a3a35 100644
+--- a/packages/SystemUI/compose/features/src/com/android/systemui/qs/ui/composable/QuickSettingsShadeOverlay.kt
++++ b/packages/SystemUI/compose/features/src/com/android/systemui/qs/ui/composable/QuickSettingsShadeOverlay.kt
+@@ -16,6 +16,7 @@
+ 
+ package com.android.systemui.qs.ui.composable
+ 
++import android.os.Build
+ import androidx.compose.animation.AnimatedContent
+ import androidx.compose.animation.core.animateFloatAsState
+ import androidx.compose.animation.core.tween
+@@ -159,6 +160,15 @@ constructor(
+             rememberViewModel("QuickSettingsShadeOverlayContent", key = coroutineScope) {
+                 contentViewModelFactory.create(coroutineScope)
+             }
++
++        LaunchedEffectWithLifecycle(key1 = Unit) { contentViewModel.detectShadeModeChanges() }
++
++        if (Build.DEVICE == "wisdom" && !isAlwaysComposedContentVisible()) {
++            // Keep the overlay's swipe actions and shade-mode observer active, but avoid composing
++            // its hidden dual-shade panel while wisdom uses the separate single-shade scene.
++            return
++        }
++
+         val useBrightnessMirrorInOverlay =
+             useBrightnessMirrorInOverlay() && !contentViewModel.shadeModeInteractor.isDualShade
+         val scrollState =
+@@ -198,8 +208,6 @@ constructor(
+             }
+         }
+ 
+-        LaunchedEffectWithLifecycle(key1 = Unit) { contentViewModel.detectShadeModeChanges() }
+-
+         Box(
+             modifier =
+                 modifier
 diff --git a/packages/SystemUI/compose/features/src/com/android/systemui/shade/ui/composable/ShadeScene.kt b/packages/SystemUI/compose/features/src/com/android/systemui/shade/ui/composable/ShadeScene.kt
-index 0a42c6f51eb0ff82ffdfa944f51ca9261d41730d..b32a1bbebad1e65e58bc550e9ac274a49cce3bff 100644
+index f99db694c84532c736532beea4e8328cd3fa32d4..3be8be393c6481043b5a3759e8f5fc57c7503e95 100644
 --- a/packages/SystemUI/compose/features/src/com/android/systemui/shade/ui/composable/ShadeScene.kt
 +++ b/packages/SystemUI/compose/features/src/com/android/systemui/shade/ui/composable/ShadeScene.kt
-@@ -313,8 +313,7 @@ private fun ContentScope.SingleShade(
+@@ -320,8 +320,7 @@ private fun ContentScope.SingleShade(
      LaunchedEffectWithLifecycle(Unit) { viewModel.detectShadeModeChanges() }
  
      val onlyPunchHolesInThisScene =
@@ -173,7 +210,7 @@ index 0a42c6f51eb0ff82ffdfa944f51ca9261d41730d..b32a1bbebad1e65e58bc550e9ac274a4
      val mediaInRow = viewModel.showMediaInRow
      val notificationStackPadding = dimensionResource(id = R.dimen.notification_side_paddings_single)
  
-@@ -502,7 +501,7 @@ private fun ContentScope.SingleShade(
+@@ -509,7 +508,7 @@ private fun ContentScope.SingleShade(
                      stackScrollView = notificationStackScrollView,
                      viewModel = notificationsPlaceholderViewModel,
                      notificationRulesParentViewModel = notificationRulesParentViewModel,
@@ -214,3 +251,39 @@ index 106733cceb554adf203cee62d3c30c4ac547577f..18156d1a8c8e9bf70efc2d41c914bee4
      @Test
      @DisableFlags(SysuiFlags.FLAG_DELETE_AFTER_SCROLL_CAPTURE)
      @EnableFlags(SysuiFlags.FLAG_LARGE_SCREEN_SCREENCAPTURE)
+diff --git a/packages/SystemUI/src/com/android/systemui/shade/ui/ShadeColors.kt b/packages/SystemUI/src/com/android/systemui/shade/ui/ShadeColors.kt
+index 654e432e985fab1c3d8f2c63ac1a0213a5e46d62..9f85e1bb55a2d12ec4a49fbebbfbaa6806850d8d 100644
+--- a/packages/SystemUI/src/com/android/systemui/shade/ui/ShadeColors.kt
++++ b/packages/SystemUI/src/com/android/systemui/shade/ui/ShadeColors.kt
+@@ -16,10 +16,10 @@
+ 
+ package com.android.systemui.shade.ui
+ 
++import android.app.ActivityManager
+ import android.content.Context
+ import android.content.res.Configuration
+ import android.graphics.Color
+-import android.os.UserHandle
+ import com.android.internal.graphics.ColorUtils
+ import com.android.systemui.res.R
+ import lineageos.providers.LineageSettings
+@@ -103,14 +103,17 @@ object ShadeColors {
+         val isNightMode =
+             (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+                 Configuration.UI_MODE_NIGHT_YES
++        if (!isNightMode) {
++            return context.getColor(R.color.shade_panel_fallback)
++        }
+         val useBlackTheme =
+             LineageSettings.Secure.getIntForUser(
+                 context.contentResolver,
+                 LineageSettings.Secure.BERRY_BLACK_THEME,
+                 0,
+-                UserHandle.USER_CURRENT,
++                ActivityManager.getCurrentUser(),
+             ) == 1
+-        return if (useBlackTheme && isNightMode) {
++        return if (useBlackTheme) {
+             Color.BLACK
+         } else {
+             context.getColor(R.color.shade_panel_fallback)

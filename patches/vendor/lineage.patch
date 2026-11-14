@@ -143,10 +143,10 @@ index cd13f082a08c3fd2573a2e014aab6e6baad85b2b..441e41f53b8ba54cfad57cc4ca1760f1
  
  
 diff --git a/build/tasks/kernel.mk b/build/tasks/kernel.mk
-index 15ce95b74109c88f58055b1a6a6ce754577f5b05..39fb09d37f028545e6e4e54f8292c06390c3968e 100644
+index f081f79181a0e270fb527cd6ac68af4778ced81b..be6b9a0dadb26658a1b81c9afa2f995c91cde3b9 100644
 --- a/build/tasks/kernel.mk
 +++ b/build/tasks/kernel.mk
-@@ -385,10 +385,10 @@ ifneq ($(filter $(FULL_KERNEL_BUILD),true)$(TARGET_KERNEL_PLATFORM_TARGET),)
+@@ -381,10 +381,10 @@ ifneq ($(filter $(FULL_KERNEL_BUILD),true)$(TARGET_KERNEL_PLATFORM_TARGET),)
  # Depmod requires a well-formed kernel version so 0.0 is used as a placeholder.
  define build-image-kernel-modules-lineage
      mkdir -p $(2)/lib/modules$(6)
@@ -159,7 +159,7 @@ index 15ce95b74109c88f58055b1a6a6ce754577f5b05..39fb09d37f028545e6e4e54f8292c063
      if [ -n "$(8)" ]; then cp -r $(8) $(4)/lib/modules/0.0/; fi
      $(DEPMOD) -ae -F $(KERNEL_OUT)/System.map -b $(4) 0.0 2>$(4)/depmod_stderr
      cat $(4)/depmod_stderr >&2
-@@ -422,10 +422,12 @@ define build-image-kernel-modules-lineage
+@@ -418,10 +418,12 @@ define build-image-kernel-modules-lineage
          echo lib/modules$(6)/modules.dep >> "$(7)"; \
          if [ ! -z "$(5)" ]; then echo lib/modules$(6)/modules.load >> "$(7)"; fi; \
          echo lib/modules$(6)/modules.softdep >> "$(7)"; \
@@ -176,7 +176,7 @@ index 15ce95b74109c88f58055b1a6a6ce754577f5b05..39fb09d37f028545e6e4e54f8292c063
          sort -u "$(7)" -o "$(7)"; \
      fi;
  endef
-@@ -548,7 +550,7 @@ $(TARGET_PREBUILT_INT_KERNEL): $(KERNEL_CONFIG) $(DEPMOD) $(DTC) $(KERNEL_MODULE
+@@ -544,7 +546,7 @@ $(TARGET_PREBUILT_INT_KERNEL): $(KERNEL_CONFIG) $(DEPMOD) $(DTC) $(KERNEL_MODULE
  				$(eval p := $(subst :,$(space),$(s))) \
  				; mv $$(echo $$all_modules | tr ' ' '\n' | grep /$(word 1,$(p))) $$kernel_modules_dir/$(word 2,$(p))); \
  			all_modules=$$(find $$kernel_modules_dir -type f -name '*.ko'); \
@@ -185,7 +185,7 @@ index 15ce95b74109c88f58055b1a6a6ce754577f5b05..39fb09d37f028545e6e4e54f8292c063
  			$(if $$dup_modules,\
  				err=$$(for m in $$dup_modules; do \
  					echo "ERROR: Duplicate module $$m" 1>&2 && echo "dup"; \
-@@ -579,7 +581,7 @@ $(TARGET_PREBUILT_INT_KERNEL): $(KERNEL_CONFIG) $(DEPMOD) $(DTC) $(KERNEL_MODULE
+@@ -575,7 +577,7 @@ $(TARGET_PREBUILT_INT_KERNEL): $(KERNEL_CONFIG) $(DEPMOD) $(DTC) $(KERNEL_MODULE
  					done) || exit "$$?"; \
  				fi; \
  				,\
@@ -194,8 +194,25 @@ index 15ce95b74109c88f58055b1a6a6ce754577f5b05..39fb09d37f028545e6e4e54f8292c063
  			) \
  			$(if $(BOOT_KERNEL_MODULES)$(BOOT_KERNEL_MODULES_FINDER),\
  				$(if $(BOOT_KERNEL_MODULES_FINDER), \
+diff --git a/config/BoardConfigKernel.mk b/config/BoardConfigKernel.mk
+index c117b0e46ecdd518f1fcb8545245a9285571493a..6619773911598088231f4dd761b5d8553bffd4c0 100644
+--- a/config/BoardConfigKernel.mk
++++ b/config/BoardConfigKernel.mk
+@@ -198,10 +198,10 @@ ifneq ($(TARGET_KERNEL_ADDITIONAL_FLAGS),)
+ endif
+ 
+ # Set the out dir for the kernel's O= arg
+-# This needs to be an absolute path, so only set this if the standard out dir isn't used
++# Prefix every relative output directory, including custom PoC directories.
+ OUT_DIR_PREFIX := $(shell echo $(OUT_DIR) | sed -e 's|/target/.*$$||g')
+ KERNEL_BUILD_OUT_PREFIX :=
+-ifeq ($(OUT_DIR_PREFIX),out)
++ifeq ($(filter /%,$(OUT_DIR_PREFIX)),)
+     KERNEL_BUILD_OUT_PREFIX := $(BUILD_TOP)/
+ endif
+ 
 diff --git a/config/common.mk b/config/common.mk
-index bdc1d274a10b26f89f1baa2524b4f9c51e004dc5..9fec31056a3a05483aadc388c602054dec6d17f5 100644
+index 0b2437e0377b58d6ad6aada918a7a23b7d1c5004..1a45245b1452752133ac895202eb0df887a9f874 100644
 --- a/config/common.mk
 +++ b/config/common.mk
 @@ -13,11 +13,14 @@ PRODUCT_BRAND ?= DerpFest
@@ -221,7 +238,7 @@ index bdc1d274a10b26f89f1baa2524b4f9c51e004dc5..9fec31056a3a05483aadc388c602054d
  
  ifeq ($(PRODUCT_IS_ATV),true)
  ifeq ($(PRODUCT_ATV_CLIENTID_BASE),)
-@@ -261,8 +265,10 @@ PRODUCT_COPY_FILES += \
+@@ -259,8 +263,10 @@ PRODUCT_COPY_FILES += \
  # Overlay
  PRODUCT_PACKAGES += \
      FrameworkOverlayCustom \
@@ -233,7 +250,7 @@ index bdc1d274a10b26f89f1baa2524b4f9c51e004dc5..9fec31056a3a05483aadc388c602054d
  
  # OverlayFS
  PRODUCT_PACKAGES_DEBUG += \
-@@ -273,8 +279,10 @@ PRODUCT_PACKAGES += \
+@@ -271,8 +277,10 @@ PRODUCT_PACKAGES += \
      rsync
  
  # Google Assistant
@@ -245,7 +262,7 @@ index bdc1d274a10b26f89f1baa2524b4f9c51e004dc5..9fec31056a3a05483aadc388c602054d
  # Storage manager
  PRODUCT_PRODUCT_PROPERTIES += \
 diff --git a/config/derpfest.mk b/config/derpfest.mk
-index 0ef667b3ff4cad335c79d7a65bc6bf4444a87a1c..9dcf2e7ed29151c086f3cd53ead2b7e9f0d14f57 100644
+index a437245cc1f09d2603bd0331cc5b18ad7fd1da3e..d11d2f5d3f391832fb8a08a6b02b81a37eadf06d 100644
 --- a/config/derpfest.mk
 +++ b/config/derpfest.mk
 @@ -1,5 +1,9 @@
@@ -296,7 +313,7 @@ index 0ef667b3ff4cad335c79d7a65bc6bf4444a87a1c..9dcf2e7ed29151c086f3cd53ead2b7e9
  
  # Accord
  TARGET_INCLUDE_ACCORD ?= true
-@@ -68,7 +78,6 @@ PRODUCT_PACKAGES += \
+@@ -71,7 +81,6 @@ PRODUCT_PACKAGES += \
      AxThemeStore \
      BatteryStatsViewer \
      DerpWalls \
@@ -304,7 +321,7 @@ index 0ef667b3ff4cad335c79d7a65bc6bf4444a87a1c..9dcf2e7ed29151c086f3cd53ead2b7e9
      GameSpace \
      LMOFreeform \
      LMOFreeformSidebar \
-@@ -78,10 +87,19 @@ PRODUCT_PACKAGES += \
+@@ -81,10 +90,19 @@ PRODUCT_PACKAGES += \
      Prospect \
      SystemUIFundamental
  
@@ -324,13 +341,14 @@ index 0ef667b3ff4cad335c79d7a65bc6bf4444a87a1c..9dcf2e7ed29151c086f3cd53ead2b7e9
  
  # ColumbusService
  ifneq ($(TARGET_SUPPORTS_QUICK_TAP),false)
-@@ -99,16 +117,15 @@ ifeq ($(TARGET_FACE_UNLOCK_SUPPORTED),true)
+@@ -104,17 +122,16 @@ ifeq ($(TARGET_FACE_UNLOCK_SUPPORTED),true)
      PRODUCT_COPY_FILES += \
          frameworks/native/data/etc/android.hardware.biometrics.face.xml:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/permissions/android.hardware.biometrics.face.xml
  else
 +ifeq ($(WITH_GMS),true)
      PRODUCT_PACKAGES += \
          SettingsGoogleFutureFaceEnroll
+ endif
  endif
 +endif
  
@@ -343,7 +361,7 @@ index 0ef667b3ff4cad335c79d7a65bc6bf4444a87a1c..9dcf2e7ed29151c086f3cd53ead2b7e9
  # DerpFest Clocks
  $(call inherit-product, packages/apps/DerpFestClocks/clocks.mk)
  
-@@ -116,7 +133,9 @@ $(call inherit-product, packages/apps/DerpFestClocks/clocks.mk)
+@@ -122,7 +139,9 @@ $(call inherit-product, packages/apps/DerpFestClocks/clocks.mk)
  $(call inherit-product, vendor/pixel/clocks/products/clocks.mk)
  
  # Pixel GMS

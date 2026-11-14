@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "source": "DerpFest 17 / wisdom; manifest 04cf624; 2026-10-08 sync",
+  "source": "DerpFest 17 / wisdom; manifest 9f9c8960; 2026-11-12 sync",
   "patches": [
     {
       "project": "bootable/recovery",
       "upstream": "https://github.com/DerpFest-AOSP/android_bootable_recovery",
-      "base_commit": "811791e48b7776e3fd31e59cb6b9b3803654fbaa",
+      "base_commit": "b3c3a20cc99605ee0258e6322cdd47d5d85d17ef",
       "patch": "patches/bootable/recovery.patch",
       "sha256": "1a4929bc90c2cf0cf34a9c99d118b7f08a4c6bb9d93a8e171eba8803e0dff986",
       "files": 1
@@ -13,7 +13,7 @@
     {
       "project": "build/soong",
       "upstream": "https://github.com/DerpFest-AOSP/android_build_soong",
-      "base_commit": "870a9baed1509ab910fee00091839bea8c1f84a0",
+      "base_commit": "b6f67b1d5e7e92cae102d6327c22a6f0d35d30fe",
       "patch": "patches/build/soong.patch",
       "sha256": "9d8a6f5d026def029b12e725e4ee9c2bc1dfe2a8546c8a2bb0d7c2afd44fbb0a",
       "files": 1
@@ -29,7 +29,7 @@
     {
       "project": "external/chromium-webview/patches",
       "upstream": "https://github.com/LineageOS/android_external_chromium-webview_patches",
-      "base_commit": "c90965b7fc332c0f0fcb115dfcbfbda5fcc6381b",
+      "base_commit": "ef69054c74f7d8306446969136c806738169f1e1",
       "patch": "patches/external/chromium-webview/patches.patch",
       "sha256": "86596a17d2e51c272979cefc9ed53da5d40891c1c19716e83659796e0fbd7e89",
       "files": 1
@@ -37,7 +37,7 @@
     {
       "project": "frameworks/av",
       "upstream": "https://github.com/DerpFest-AOSP/android_frameworks_av",
-      "base_commit": "ab97ffe45965b1e54299ed1d077e0724b7880ee1",
+      "base_commit": "a9db50f9dc05a11ee4db662ef7fb601582d41483",
       "patch": "patches/frameworks/av.patch",
       "sha256": "5a63c190be7c1e86232d7e1f00505906e670407ddadfa64f6aaad1ab4bcb75c7",
       "files": 3
@@ -45,15 +45,15 @@
     {
       "project": "frameworks/base",
       "upstream": "https://github.com/DerpFest-AOSP/android_frameworks_base",
-      "base_commit": "409b7e58b663b7039ce53b029e6becb355adc01a",
+      "base_commit": "f3db14c44c408d02fe0da774a3849aa28735f692",
       "patch": "patches/frameworks/base.patch",
-      "sha256": "7c76c0d743beef24f7a9424980e99940e3d4c99af68907a41e4ad6fbf77de7a7",
-      "files": 5
+      "sha256": "b624c4b808698590b8c6d036b60a907257b48afe04b9651776f1f21e3d148ba4",
+      "files": 7
     },
     {
       "project": "frameworks/native",
       "upstream": "https://github.com/DerpFest-AOSP/android_frameworks_native",
-      "base_commit": "76e6ac4deebcc88824fed134e73db2613aa58e8f",
+      "base_commit": "d559dd133f5eb0aedc549dbc913f682042beead5",
       "patch": "patches/frameworks/native.patch",
       "sha256": "8639a47c086370760e2dc3133da8426fe1b75360457afd711a044adefbfebb2a",
       "files": 1
@@ -61,15 +61,15 @@
     {
       "project": "hardware/interfaces",
       "upstream": "https://github.com/DerpFest-AOSP/android_hardware_interfaces",
-      "base_commit": "8a917840bdd7f197705fcaa32c2fdb2f043f2f4d",
+      "base_commit": "fb9c770643e818ac2a9d6b018563e12db2444b2e",
       "patch": "patches/hardware/interfaces.patch",
       "sha256": "661900869f33c6e4de1da63f1979af0b5897ae9266608a091f56d3f379ff3395",
       "files": 1
     },
     {
       "project": "hardware/lineage/interfaces",
-      "upstream": "https://github.com/LineageOS/android_hardware_lineage_interfaces",
-      "base_commit": "8e74530186f555d7f4802a579e901535d9f0968f",
+      "upstream": "https://github.com/DerpFest-AOSP/android_hardware_lineage_interfaces",
+      "base_commit": "7b4b2ccb2e396582296d76123fbdff74eaca4d93",
       "patch": "patches/hardware/lineage/interfaces.patch",
       "sha256": "dbc6f219b21e0f6b0b24b799a766092d7070910fb7110e287bd9ff6db2c52ec2",
       "files": 1
@@ -77,7 +77,7 @@
     {
       "project": "hardware/samsung",
       "upstream": "https://github.com/LineageOS/android_hardware_samsung",
-      "base_commit": "4c4e16f32a19c2cc706b5d2052e22d5ea5fa94f5",
+      "base_commit": "3f823f5fdbfbd447c3ba9be6ae6643a33867d4b6",
       "patch": "patches/hardware/samsung.patch",
       "sha256": "899afacf00eff356d5e74e5c2c022376135b200036e446a5009fe16e9424e7db",
       "files": 1
@@ -93,7 +93,7 @@
     {
       "project": "packages/apps/Canvas",
       "upstream": "https://github.com/LineageOS/android_packages_apps_Canvas",
-      "base_commit": "115bed958a82fb9bcc3a770e23eedf40a3442978",
+      "base_commit": "0ade20ab9bee7176b9ccb9253767db31f7a24ede",
       "patch": "patches/packages/apps/Canvas.patch",
       "sha256": "9cde19493b35bd4cffbb8d035d8a1b96499bc7a84593640168d32f4fd78cde9d",
       "files": 2
@@ -101,15 +101,23 @@
     {
       "project": "packages/apps/Launcher3",
       "upstream": "https://github.com/DerpFest-AOSP/android_packages_apps_DerpLauncher",
-      "base_commit": "c54bd173b873aca0c47638ea0239f851b8604947",
+      "base_commit": "210d7fac2681094cc46931e0e6886a320bea9d75",
       "patch": "patches/packages/apps/Launcher3.patch",
-      "sha256": "f286eef7f6aaba968f39abfeb2fd14134091e82de782468bdbc256b824d0a233",
+      "sha256": "c1fc72cf5e8ef0f06be6387c5c5fdfe3fde75bfb7c5132d92c653094785397c4",
       "files": 10
+    },
+    {
+      "project": "packages/apps/Settings",
+      "upstream": "https://github.com/DerpFest-AOSP/android_packages_apps_Settings",
+      "base_commit": "b8b777a34f557ad45d4c03ba8d7e1cda771233b3",
+      "patch": "patches/packages/apps/Settings.patch",
+      "sha256": "e61b9376e4a47cf7bc21919955fd567db405ea01817ad1ffe2830cce8471acb2",
+      "files": 5
     },
     {
       "project": "packages/modules/Bluetooth",
       "upstream": "https://github.com/DerpFest-AOSP/android_packages_modules_Bluetooth",
-      "base_commit": "6eae705efbf516c8923d41735d5b641b001a2633",
+      "base_commit": "2b3aafd7807d7e99606136e542936c325a7507bf",
       "patch": "patches/packages/modules/Bluetooth.patch",
       "sha256": "e3888c4c74e1106cc3b6e4833dbb8c0125045fcc40f16ce755313857749bef45",
       "files": 1
@@ -125,15 +133,15 @@
     {
       "project": "system/core",
       "upstream": "https://github.com/DerpFest-AOSP/android_system_core",
-      "base_commit": "e9a87f5a080a01b3ba6ea4fcd9c87d076c0a38bf",
+      "base_commit": "aebd6f32d839b383526898f202a4160316c36648",
       "patch": "patches/system/core.patch",
-      "sha256": "cd4589442a5301d03fe5d69e6d3b668d8055008d68a912fc04008494ae0c5862",
+      "sha256": "992ca7374a0e3348b7ef3de75a9ba269c231a83559bbca61ad80e4236da06b55",
       "files": 11
     },
     {
       "project": "system/media",
       "upstream": "https://github.com/LineageOS/android_system_media",
-      "base_commit": "a6e89ff7fdee50366c2790e09531fd94f81e522b",
+      "base_commit": "f150131cfd6d8dacecf86a3e0cded02d249296a4",
       "patch": "patches/system/media.patch",
       "sha256": "1c250f74b19fb0fa423c54eb7061364b96e799c42588f86375cff95b39d2505e",
       "files": 1
@@ -149,17 +157,17 @@
     {
       "project": "vendor/lineage",
       "upstream": "https://github.com/DerpFest-AOSP/android_vendor_derpfest",
-      "base_commit": "87155b1db117a05ff9a5a07c6c5cd4100fd14ab8",
+      "base_commit": "e6553f2c6220c2db2d718450fdaa7bf70a73021f",
       "patch": "patches/vendor/lineage.patch",
-      "sha256": "f00f7fe2829267bef9a8eca10d45b7bf8cf700a68106afda5cf9c08487905066",
-      "files": 7
+      "sha256": "493c06e68bfbe2f94203a5795837114e2fd5f90ebdaa41973b9d154c8abb81c5",
+      "files": 8
     },
     {
       "project": "vendor/overlay",
       "upstream": "https://github.com/DerpFest-AOSP/android_vendor_overlay",
-      "base_commit": "c2262dc6ed38afca6879265f97eef28ed444da11",
+      "base_commit": "ba96716ecca216d20f72671bec385b8e76c08f7b",
       "patch": "patches/vendor/overlay.patch",
-      "sha256": "4c2e5dedb08a5938142fee0f55d058dcc8b1f154f2a1a6f2ef144639ed28f3b9",
+      "sha256": "11df1f8938776c81b320c7d5b54b354f6d8fcee8d9e2555a9b09c2365cc1a985",
       "files": 1
     }
   ]

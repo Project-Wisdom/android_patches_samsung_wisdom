@@ -142,10 +142,10 @@ index aec2688fc8387d1166be7e6a6e24e4a536337c03..f3a70cd8151be623fc708c09488c24b0
      if (auto result = epoll.Open(); !result.ok()) {
          PLOG(FATAL) << result.error();
 diff --git a/init/property_service.cpp b/init/property_service.cpp
-index 195e28f49c68627ced7cf6bb26900b4f6a6e97ff..e4fa9a5b56bf53a7be24b5bfa796af46c765b1e7 100644
+index 133deb70f74514484822e1d2716ef6083e373005..93a804d31d1f52b702a59379389c54c510ee67a7 100644
 --- a/init/property_service.cpp
 +++ b/init/property_service.cpp
-@@ -1207,7 +1207,6 @@ static void SetSafetyNetProps() {
+@@ -1226,7 +1226,6 @@ static void SetSafetyNetProps() {
          {"oplusboot.verifiedbootstate", "green"},
          {"sys.oem_unlock_allowed", "0"},
          {"ro.oem_unlock_supported", "0"},
@@ -314,7 +314,7 @@ index 0b26e9568e9d2cb6d94ae2287592069cf79ef95d..57520b7c6376a5d7f3bf9072db58b510
              PLOG(INFO) << "Failed to mount optional controller " << controller->name();
              return true;
 diff --git a/rootdir/init.rc b/rootdir/init.rc
-index d33dd5e18c7c24e2cdf38cf8efeaacca8b8892db..81328c662eda5bc6ae109d0bf615480d828921b2 100644
+index 2f1550a3ca7deefa02c68d4f820ec5d81ad8f0fb..a62aca7fa99b68d41e2c316bfd4b277247d4247c 100644
 --- a/rootdir/init.rc
 +++ b/rootdir/init.rc
 @@ -1088,6 +1088,22 @@ on post-fs-data

@@ -69,10 +69,10 @@ index 7862a16c45541794571c5ff01b12b8b873051c51..aa28664a488145e693d4187492aa370e
          traceBegin(TRACE_TAG_APP, "TaskbarView#updateHotseatItems");
          int numViewsAnimated = 0;
 diff --git a/quickstep/src/com/android/launcher3/taskbar/TaskbarViewController.java b/quickstep/src/com/android/launcher3/taskbar/TaskbarViewController.java
-index 7d285e6b656b0201375e431fe34a68ede196e869..8035a8e8361fc25814f9d1db037e2c43ae402843 100644
+index 1c258d93e9d963e97859fac773ae304fac364ff2..ee9280d1ca8da07e784e899560fed7e02c4f50f2 100644
 --- a/quickstep/src/com/android/launcher3/taskbar/TaskbarViewController.java
 +++ b/quickstep/src/com/android/launcher3/taskbar/TaskbarViewController.java
-@@ -1388,7 +1388,14 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
+@@ -1393,7 +1393,14 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
                              ? R.dimen.taskbar_phone_size
                              : R.dimen.taskbar_stashed_size);
          } else {
@@ -149,7 +149,7 @@ index 7a8859fdfc6ade78e05ab0d96648345c5af18242..4ba3f3115bd9fc3672cc3f4b3342bdfa
          launcher:name="tablet_normal"
          launcher:numRows="5"
 diff --git a/src/com/android/launcher3/InvariantDeviceProfile.java b/src/com/android/launcher3/InvariantDeviceProfile.java
-index 99c8b6a2ff55adf8aeff9c8afad3706e16fda30e..bdd94143cc467eeaf1f04c4bfdc2217f95c45d43 100644
+index b2c5d44b367a4b0f98d2cb9d40348eb3fdac2150..d5c51e07578b4f4272abb31cd31c7411b981156c 100644
 --- a/src/com/android/launcher3/InvariantDeviceProfile.java
 +++ b/src/com/android/launcher3/InvariantDeviceProfile.java
 @@ -17,6 +17,8 @@
@@ -178,16 +178,16 @@ index 99c8b6a2ff55adf8aeff9c8afad3706e16fda30e..bdd94143cc467eeaf1f04c4bfdc2217f
  
      @Retention(RetentionPolicy.SOURCE)
      @IntDef({TYPE_PHONE, TYPE_MULTI_DISPLAY, TYPE_TABLET, TYPE_DESKTOP})
-@@ -287,6 +292,8 @@ public class InvariantDeviceProfile {
-         }
+@@ -288,6 +293,8 @@ public class InvariantDeviceProfile {
  
          String gridName = prefs.get(GRID_NAME);
+         maybeDefaultToFixedLandscape(context, gridName);
 +        gridName = maybeMigrateCompactTabletGrid(
 +                context, prefs, mDisplayController.getInfo(), gridName);
          initGrid(gridName);
          mThemeManager.generateIconShape(iconBitmapSize);
  
-@@ -370,7 +377,21 @@ public class InvariantDeviceProfile {
+@@ -386,7 +393,21 @@ public class InvariantDeviceProfile {
                          displayInfo.getDeviceType());
  
          if (!displayOption.grid.name.equals(gridName)) {
@@ -210,7 +210,7 @@ index 99c8b6a2ff55adf8aeff9c8afad3706e16fda30e..bdd94143cc467eeaf1f04c4bfdc2217f
          }
  
          initGridForDisplayOption(displayInfo, displayOption);
-@@ -618,6 +639,188 @@ public class InvariantDeviceProfile {
+@@ -634,6 +655,188 @@ public class InvariantDeviceProfile {
          return filteredProfiles;
      }
  
@@ -399,7 +399,7 @@ index 99c8b6a2ff55adf8aeff9c8afad3706e16fda30e..bdd94143cc467eeaf1f04c4bfdc2217f
      /**
       * @return all the grid options that can be shown on the device
       */
-@@ -732,6 +935,14 @@ public class InvariantDeviceProfile {
+@@ -754,6 +957,14 @@ public class InvariantDeviceProfile {
          // out = out / combinedWeight
          out.merge(out, (b1, b2) -> b1, (f1, f2) -> f1 / combinedWeight);
  
@@ -415,7 +415,7 @@ index 99c8b6a2ff55adf8aeff9c8afad3706e16fda30e..bdd94143cc467eeaf1f04c4bfdc2217f
          // predefined size to avoid cache invalidation
          for (int i = 0; i < out.iconSizes.length; i++) {
 diff --git a/src/com/android/launcher3/LauncherPrefs.kt b/src/com/android/launcher3/LauncherPrefs.kt
-index fe5b5a6ee59a959cfb92751aa6a1aaad82236843..871901fdd8463867be430e4e5bb760936a3bbea0 100644
+index 7d72d9f5ad3f4a0b62841336c9ade6601a25b119..05f641df2d908135a257a2a3ee4bffe9c5f6c46b 100644
 --- a/src/com/android/launcher3/LauncherPrefs.kt
 +++ b/src/com/android/launcher3/LauncherPrefs.kt
 @@ -138,9 +138,31 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
@@ -468,7 +468,7 @@ index fe5b5a6ee59a959cfb92751aa6a1aaad82236843..871901fdd8463867be430e4e5bb76093
  
      /**
       * Removes the key value pairs stored in `SharedPreferences` for each corresponding Item. If the
-@@ -374,6 +401,18 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
+@@ -375,6 +402,18 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
                  type = String::class.java,
              )
  
@@ -516,7 +516,7 @@ index 46cd370280c8ddaa00dbf8b5182dabba6352028c..6914805dc8f4893e9e62b7c14392349a
  
          private fun logDatabaseWidgetInfo(controller: ModelDbController) {
 diff --git a/tests/multivalentTests/src/com/android/launcher3/AbstractDeviceProfileTest.kt b/tests/multivalentTests/src/com/android/launcher3/AbstractDeviceProfileTest.kt
-index 945034e058b0df390f19899dc183d673e297c8e6..28ee654a9db317e807843682ff56aa1184d1d8c5 100644
+index 7732f6843b0ab92c4c59c376fbf5514e06e0eb3b..2e0a801840af1d295344ccf235e6775c477a77bf 100644
 --- a/tests/multivalentTests/src/com/android/launcher3/AbstractDeviceProfileTest.kt
 +++ b/tests/multivalentTests/src/com/android/launcher3/AbstractDeviceProfileTest.kt
 @@ -115,6 +115,15 @@ abstract class AbstractDeviceProfileTest {
