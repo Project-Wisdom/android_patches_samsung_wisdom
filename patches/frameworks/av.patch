@@ -291,75 +291,15 @@ index 2b588eceec2d6b7a644ee5e1d8e8c39a27c3b368..d495c6f49ed1b7ce3ab4841d9de22129
  }
  
 diff --git a/services/audiopolicy/service/AudioPolicyService.cpp b/services/audiopolicy/service/AudioPolicyService.cpp
-index f860535d37d69bdf9b8fddad2186bbc0ef2d9f65..16d328a2af8c586040091dc2d10e1bb4386d1216 100644
+index f860535d37d69bdf9b8fddad2186bbc0ef2d9f65..c384721567c72231a7b5a8752adb558d8e8ef5d0 100644
 --- a/services/audiopolicy/service/AudioPolicyService.cpp
 +++ b/services/audiopolicy/service/AudioPolicyService.cpp
-@@ -213,21 +213,31 @@ static AudioPolicyInterface* createAudioPolicyManager(AudioPolicyClientInterface
- {
-     AudioPolicyManager *apm = nullptr;
-     media::AudioPolicyConfig apmConfig;
--    if (status_t status = clientInterface->getAudioPolicyConfig(&apmConfig); status == OK) {
-+    const status_t apmConfigStatus = clientInterface->getAudioPolicyConfig(&apmConfig);
-+    ALOGE("APM_DIAG getAudioPolicyConfig returned %d", apmConfigStatus);
-+    if (apmConfigStatus == OK) {
-         auto config = AudioPolicyConfig::loadFromApmAidlConfigWithFallback(apmConfig);
--        ALOGD("%s loading APM engine %s", __func__, config->getEngineLibraryNameSuffix().c_str());
-+        ALOGE("APM_DIAG AIDL config source='%s', engine='%s', modules=%zu, outputs=%zu",
-+                config->getSource().c_str(), config->getEngineLibraryNameSuffix().c_str(),
-+                config->getHwModules().size(), config->getOutputDevices().size());
-         apm = new AudioPolicyManager(config,
-                 loadApmEngineLibraryAndCreateEngine(
-                         config->getEngineLibraryNameSuffix(), apmConfig.engineConfig),
-                 clientInterface);
-     } else {
-         auto config = AudioPolicyConfig::loadFromApmXmlConfigWithFallback();  // This can't fail.
-+        ALOGE("APM_DIAG XML fallback source='%s', engine='%s', modules=%zu, outputs=%zu",
-+                config->getSource().c_str(), config->getEngineLibraryNameSuffix().c_str(),
-+                config->getHwModules().size(), config->getOutputDevices().size());
-         apm = new AudioPolicyManager(config,
-                 loadApmEngineLibraryAndCreateEngine(config->getEngineLibraryNameSuffix()),
-                 clientInterface);
+@@ -228,6 +228,8 @@ static AudioPolicyInterface* createAudioPolicyManager(AudioPolicyClientInterface
      }
      status_t status = apm->initialize();
-+    ALOGE("APM_DIAG initialize returned %d, manager=%p", status, apm);
      if (status != NO_ERROR) {
 +        ALOGE("%s: AudioPolicyManager initialization failed with status %d",
 +                __func__, status);
          delete apm;
          apm = nullptr;
      }
-@@ -258,8 +268,15 @@ AudioPolicyService::AudioPolicyService()
- void AudioPolicyService::loadAudioPolicyManager()
- {
-     mLibraryHandle = dlopen(kAudioPolicyManagerCustomPath, RTLD_NOW);
-+    if (mLibraryHandle == nullptr) {
-+        const char *lastError = dlerror();
-+        ALOGE("APM_DIAG custom manager '%s' unavailable; using built-in factory: %s",
-+                kAudioPolicyManagerCustomPath, lastError != nullptr ? lastError : "no error");
-+        return;
-+    }
-+    ALOGE("APM_DIAG loaded custom manager '%s' at %p",
-+            kAudioPolicyManagerCustomPath, mLibraryHandle);
-     if (mLibraryHandle != nullptr) {
--        ALOGI("%s loading %s", __func__, kAudioPolicyManagerCustomPath);
-         mCreateAudioPolicyManager = reinterpret_cast<CreateAudioPolicyManagerInstance>
-                                             (dlsym(mLibraryHandle, "createAudioPolicyManager"));
-         const char *lastError = dlerror();
-@@ -280,6 +297,7 @@ void AudioPolicyService::loadAudioPolicyManager()
- 
- void AudioPolicyService::onFirstRef()
- {
-+    ALOGE("APM_DIAG AudioPolicyService::onFirstRef entered");
-     // Log an AudioPolicy "constructor" mediametrics event on first ref.
-     // This records the time it takes to load the audio modules and devices.
-     mediametrics::Defer defer([beginNs = systemTime()] {
-@@ -298,7 +316,9 @@ void AudioPolicyService::onFirstRef()
-         mAudioPolicyClient = new AudioPolicyClient(this);
- 
-         loadAudioPolicyManager();
-+        ALOGE("APM_DIAG creating manager with custom library handle=%p", mLibraryHandle);
-         mAudioPolicyManager = mCreateAudioPolicyManager(mAudioPolicyClient);
-+        ALOGE("APM_DIAG onFirstRef manager result=%p", mAudioPolicyManager);
-     }
- 
-     // load audio processing modules

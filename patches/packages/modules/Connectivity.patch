@@ -17,34 +17,6 @@ index 00a6e762d425577d05acc408451693564a78a6c5..424622013b9eab90791f8a4c7f3b8aee
              int flags = bpfGetFdMapFlags(mMapFd);
              if (flags < 0) Abort(errno, "bpfGetFdMapFlags fail: flags=%d", flags);
              if (flags & BPF_F_WRONLY) Abort(0, "map is write-only (flags=0x%X)", flags);
-diff --git a/bpf/loader/NetBpfLoad.cpp b/bpf/loader/NetBpfLoad.cpp
-index d4853bac94ff777130f513ddc057cdb855c74c4f..47d9c4937cdc6fdd7b41924edd55250f2ab4c791 100644
---- a/bpf/loader/NetBpfLoad.cpp
-+++ b/bpf/loader/NetBpfLoad.cpp
-@@ -1090,7 +1090,9 @@ static int loadCodeSections(const ElfObject& elfObj, vector<codeSection>& cs,
- 
-             if (!fd.ok()) {
-                 // kernel NULL terminates log_buf, so this checks for non-empty string
--                if (log_buf[0] && !isUser) {
-+                // wisdom bring-up: retain verifier diagnostics on the user image so
-+                // pstore can identify missing pieces in the legacy-kernel backport.
-+                if (log_buf[0]) {
-                     vector<string> lines = Split(log_buf, "\n");
- 
-                     ALOGW("BPF_PROG_LOAD - BEGIN log_buf contents:");
-diff --git a/bpf/loader/netbpfload.35rc b/bpf/loader/netbpfload.35rc
-index 63f43e0467ffc1ea814648ce5b325d0e5aa9efb5..4cebe2837bc42e45cb86ed1825b050e22756e1fe 100644
---- a/bpf/loader/netbpfload.35rc
-+++ b/bpf/loader/netbpfload.35rc
-@@ -66,5 +66,7 @@ service bpfloader /apex/com.android.tethering/bin/netbpfload
-     #    'cannot prove return value is 0 or 1' or 'unsupported / unknown operation / helper',
-     #    'invalid bpf_context access', etc.
-     #
--    reboot_on_failure reboot,bpfloader-failed
-+    # Bring-up only: return to recovery after a loader failure so the previous
-+    # boot log can be collected without using a kernel panic path.
-+    reboot_on_failure reboot,recovery
-     override
 diff --git a/bpf/progs/dscpPolicy.c b/bpf/progs/dscpPolicy.c
 index 42286d614d900402aa61ba1760256137fe119299..c287d9ec4d49aa3dd309b7915c3d0c73a6b357d4 100644
 --- a/bpf/progs/dscpPolicy.c
